@@ -39,6 +39,7 @@ class VideoNative {
 /// Satu kandidat dari galeri HP.
 class DeviceAsset {
   final AssetEntity a;
+  String tripId = '';
   DeviceAsset(this.a);
   String get id => a.id;
   bool get isVideo => a.type == AssetType.video;
@@ -67,8 +68,11 @@ class MediaService extends ChangeNotifier {
   bool scanning = false;
   bool? permitted;
 
+  String _scannedTrip = '';
+
   int get newCount {
     final s = AppState.I;
+    if (_scannedTrip != s.tripId) return 0;
     final skip = s.skippedAssets.toSet();
     final up = s.myUploadedAssets;
     return found.where((f) => !skip.contains(f.id) && !up.contains(f.id) && !_queue.any((q) => q.id == f.id)).length;
@@ -133,6 +137,7 @@ class MediaService extends ChangeNotifier {
         }
       }
       found = list;
+      _scannedTrip = s.tripId;
     } catch (e) {
       lastError = 'Gagal membaca galeri: $e';
     }
@@ -143,6 +148,7 @@ class MediaService extends ChangeNotifier {
   void enqueue(List<DeviceAsset> list) {
     final have = {..._queue.map((q) => q.id), ...AppState.I.myUploadedAssets};
     for (final a in list) {
+      a.tripId = AppState.I.tripId;
       if (!have.contains(a.id)) _queue.add(a);
     }
     total = done + failed + _queue.length;
@@ -190,7 +196,10 @@ class MediaService extends ChangeNotifier {
   Future<void> _uploadOne(DeviceAsset da) async {
     final s = AppState.I;
     final a = da.a;
-    final ref = s.col('media').doc();
+    final sameTrip = da.tripId == s.tripId;
+    final tripRef = s.db.collection('trips').doc(da.tripId.isEmpty ? s.tripId : da.tripId);
+    final prefix = da.tripId == 'main' ? 'trip' : 't/${da.tripId}';
+    final ref = tripRef.collection('media').doc();
     final id = ref.id;
     final taken = a.createDateTime;
     final day = isoDate(taken);
@@ -209,7 +218,7 @@ class MediaService extends ChangeNotifier {
 
     final thumb = await a.thumbnailDataWithSize(const ThumbnailSize(480, 480), quality: 75);
     if (thumb == null) throw Exception('Gagal membuat thumbnail');
-    final thumbPath = 'trip/thumbs/$id.jpg';
+    final thumbPath = '$prefix/thumbs/$id.jpg';
     final thumbRef = storage.ref(thumbPath);
     await thumbRef.putData(thumb, SettableMetadata(contentType: 'image/jpeg'));
     final thumbUrl = await thumbRef.getDownloadURL();
@@ -229,27 +238,27 @@ class MediaService extends ChangeNotifier {
       final useW = w > 0 && w < tw ? w : tw;
       final useH = h > 0 && h < th ? h : th;
       await VideoNative.compress(file.path, out, useW, useH);
-      path = 'trip/media/$id.mp4';
+      path = '$prefix/media/$id.mp4';
       final r = storage.ref(path);
       await r.putFile(File(out), SettableMetadata(contentType: 'video/mp4'));
       final url = await r.getDownloadURL();
       try {
         File(out).deleteSync();
       } catch (_) {}
-      await ref.set(_doc('video', taken, day, minute, lat, lng, url, thumbUrl, path, thumbPath, w, h, a.videoDuration.inMilliseconds, a.id));
+      await ref.set(_doc('video', taken, day, minute, lat, lng, url, thumbUrl, path, thumbPath, w, h, a.videoDuration.inMilliseconds, a.id, sameTrip));
     } else {
       final Uint8List? bytes = await FlutterImageCompress.compressWithFile(file.path, minWidth: 2048, minHeight: 2048, quality: 82);
       if (bytes == null) throw Exception('Gagal mengompres foto');
-      path = 'trip/media/$id.jpg';
+      path = '$prefix/media/$id.jpg';
       final r = storage.ref(path);
       await r.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
       final url = await r.getDownloadURL();
-      await ref.set(_doc('photo', taken, day, minute, lat, lng, url, thumbUrl, path, thumbPath, w, h, 0, a.id));
+      await ref.set(_doc('photo', taken, day, minute, lat, lng, url, thumbUrl, path, thumbPath, w, h, 0, a.id, sameTrip));
     }
   }
 
   Map<String, dynamic> _doc(String type, DateTime taken, String day, int minute, double? lat, double? lng, String url, String thumbUrl,
-      String path, String thumbPath, int w, int h, int durationMs, String assetId) {
+      String path, String thumbPath, int w, int h, int durationMs, String assetId, bool sameTrip) {
     final s = AppState.I;
     return {
       'type': type,
@@ -258,7 +267,7 @@ class MediaService extends ChangeNotifier {
       'time': '${two(minute ~/ 60)}:${two(minute % 60)}',
       if (lat != null) 'lat': lat,
       if (lng != null) 'lng': lng,
-      'itemId': s.matchItem(day, minute),
+      'itemId': sameTrip ? s.matchItem(day, minute) : '',
       'url': url,
       'thumbUrl': thumbUrl,
       'path': path,

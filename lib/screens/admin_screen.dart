@@ -7,6 +7,7 @@ import '../services/places.dart';
 import '../services/recorder.dart';
 import '../store.dart';
 import 'common.dart';
+import 'trips_screen.dart';
 import 'sheets.dart';
 
 class AdminScreen extends StatefulWidget {
@@ -24,7 +25,8 @@ class _AdminScreenState extends State<AdminScreen> {
     final range = s.start.isEmpty ? '' : ' (${shortDay(s.start)}–${shortDay(s.end)} ${parseIso(s.end).year})';
     return 'Halo${name.isEmpty ? '' : ' $name'}! Ini aplikasi jadwal "${s.tripName}"$range.\n\n'
         'Kamu bisa lihat agenda per hari, cek booking, dan kirim kabar atau foto struk lewat chat.\n\n'
-        'Pasang aplikasinya dari file APK yang aku kirim, lalu masuk dengan akun Google kamu.';
+        'Pasang aplikasinya dari link ini, lalu masuk dengan akun Google kamu:\n'
+        'https://github.com/stefanusastrianto/JalanBareng/releases/latest/download/JalanBareng.apk';
   }
 
   Future<void> _sync() async {
@@ -82,13 +84,20 @@ class _AdminScreenState extends State<AdminScreen> {
                   await AppState.I.deleteMember(m);
                 }),
                 const SizedBox(width: 8),
-                if (m.email.isNotEmpty && m.email != AppState.I.adminEmail)
+                if (m.email.isNotEmpty && !AppState.I.isAdminEmail(m.email))
                   TextButton(
                       onPressed: () async {
                         Navigator.pop(c);
                         await AppState.I.makeAdmin(m);
                       },
-                      child: const Text('Jadikan admin')),
+                      child: const Text('Jadikan admin'))
+                else if (m.email.isNotEmpty && m.email != AppState.I.adminEmail)
+                  TextButton(
+                      onPressed: () async {
+                        Navigator.pop(c);
+                        await AppState.I.removeAdmin(m);
+                      },
+                      child: const Text('Cabut admin')),
               ],
               const Spacer(),
               FilledButton(
@@ -104,6 +113,33 @@ class _AdminScreenState extends State<AdminScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _editCreators() async {
+    final s = AppState.I;
+    final ctl = TextEditingController(text: s.creatorEmails.where((e) => e != s.email).join('\n'));
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Pembuat trip'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('Satu email Google per baris (mis. Anastasia, Andreas Novian, Aditama Nicholas).', style: TextStyle(fontSize: 12.5, color: C.muted)),
+          const SizedBox(height: 8),
+          TextField(controller: ctl, minLines: 4, maxLines: 8, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(border: OutlineInputBorder())),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Batal')),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Simpan')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await s.saveCreators(ctl.text.split(RegExp(r'[\s,;]+')));
+      if (mounted) toast(context, 'Daftar pembuat trip disimpan');
+    } catch (e) {
+      if (mounted) toast(context, 'Gagal menyimpan: $e');
+    }
   }
 
   Future<void> _editTrip() async {
@@ -155,7 +191,7 @@ class _AdminScreenState extends State<AdminScreen> {
   @override
   Widget build(BuildContext context) {
     final s = AppState.I;
-    final members = s.members.toList()..sort((a, b) => (b.email == s.adminEmail ? 1 : 0).compareTo(a.email == s.adminEmail ? 1 : 0));
+    final members = s.members.toList()..sort((a, b) => (s.isAdminEmail(b.email) ? 1 : 0).compareTo(s.isAdminEmail(a.email) ? 1 : 0));
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
       children: [
@@ -168,7 +204,7 @@ class _AdminScreenState extends State<AdminScreen> {
               if (s.isAdmin) OutlinedButton(onPressed: _editTrip, child: const Text('Ubah trip')),
             ]),
             const SizedBox(height: 4),
-            Text('Admin: ${s.nameOfEmail(s.adminEmail)}. Admin mengatur anggota dan tanggal trip. Semua anggota bisa menambah, mengubah, dan menghapus agenda.',
+            Text('Admin: ${s.adminEmails.map(s.nameOfEmail).join(', ')}. Admin mengatur anggota dan tanggal trip. Semua anggota bisa menambah, mengubah, dan menghapus agenda.',
                 style: const TextStyle(color: C.muted, fontSize: 12.5)),
             const SizedBox(height: 4),
             Text('Masuk sebagai ${s.email}', style: const TextStyle(color: C.muted, fontSize: 12)),
@@ -183,7 +219,7 @@ class _AdminScreenState extends State<AdminScreen> {
                 leading: CircleAvatar(backgroundColor: C.toscaSoft, child: Text(m.name.isEmpty ? '?' : m.name[0].toUpperCase())),
                 title: Text('${m.name}${m.email == s.email ? ' (Anda)' : ''}', style: const TextStyle(fontWeight: FontWeight.w700)),
                 subtitle: Text([
-                  m.email == s.adminEmail ? 'Admin' : (m.role == 'pengamat' ? 'Hanya melihat' : 'Anggota'),
+                  s.isAdminEmail(m.email) ? 'Admin' : (m.role == 'pengamat' ? 'Hanya melihat' : 'Anggota'),
                   m.email.isEmpty ? 'email belum diisi' : m.email,
                 ].join(' · ')),
                 trailing: s.isAdmin
@@ -250,6 +286,22 @@ class _AdminScreenState extends State<AdminScreen> {
             ]),
           ]),
         ),
+        if (s.isOwner) ...[
+          SectionTitle('Pembuat trip', trailing: TextButton(onPressed: _editCreators, child: const Text('Ubah'))),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: cardBox(),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Hanya email ini yang boleh membuat trip baru (dan memakai kuota Gemini/Google Maps Anda). Anggota yang diundang ke sebuah trip tidak perlu ada di daftar ini.',
+                  style: TextStyle(fontSize: 12.5, color: C.muted)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 6, runSpacing: 6, children: [
+                Chip(label: Text('${s.email} (pemilik)'), visualDensity: VisualDensity.compact),
+                for (final e in s.creatorEmails.where((e) => e != s.email)) Chip(label: Text(e), visualDensity: VisualDensity.compact),
+              ]),
+            ]),
+          ),
+        ],
         const SectionTitle('Lainnya'),
         Container(
           decoration: cardBox(),
@@ -264,7 +316,32 @@ class _AdminScreenState extends State<AdminScreen> {
               title: const Text('Google Places'),
               subtitle: Text(Places.enabled ? 'Aktif: foto dan rating tempat' : 'Belum aktif: PLACES_API_KEY belum diisi'),
             ),
-            if (s.isAdmin)
+            ListTile(
+              leading: const Icon(Icons.luggage_outlined),
+              title: const Text('Trip saya / pindah trip'),
+              subtitle: Text('${s.myTrips.length} trip'),
+              onTap: () => openTripSwitcher(context),
+            ),
+            if (s.isAdmin && s.tripId != 'main')
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: C.bad),
+                title: const Text('Hapus trip ini', style: TextStyle(color: C.bad)),
+                onTap: () async {
+                  final ok = await showDialog<bool>(
+                    context: context,
+                    builder: (c) => AlertDialog(
+                      title: Text('Hapus "${s.tripName}"?'),
+                      content: const Text('Trip hilang dari daftar semua anggota. Tindakan ini tidak bisa dibatalkan.'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Batal')),
+                        FilledButton(style: FilledButton.styleFrom(backgroundColor: C.bad), onPressed: () => Navigator.pop(c, true), child: const Text('Hapus')),
+                      ],
+                    ),
+                  );
+                  if (ok == true) await s.deleteTrip();
+                },
+              ),
+            if (s.isAdmin && s.tripId == 'main')
               ListTile(
                 leading: const Icon(Icons.cloud_download_outlined),
                 title: const Text('Impor ulang data dari versi web'),

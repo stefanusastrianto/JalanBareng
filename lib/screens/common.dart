@@ -183,15 +183,16 @@ class PlacePhoto extends StatelessWidget {
   final PlaceInfo p;
   final double width;
   final double height;
-  const PlacePhoto(this.p, {super.key, required this.width, required this.height});
+  final double radius;
+  const PlacePhoto(this.p, {super.key, required this.width, required this.height, this.radius = 10});
   @override
   Widget build(BuildContext context) {
     final box = Container(width: width, height: height, color: C.toscaSoft, child: const Icon(Icons.image_outlined, color: C.tosca));
-    if (p.photoName == null) return ClipRRect(borderRadius: BorderRadius.circular(10), child: box);
+    if (p.photoName == null) return ClipRRect(borderRadius: BorderRadius.circular(radius), child: box);
     return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(radius),
       child: CachedNetworkImage(
-        imageUrl: Places.photoUrl(p.photoName!, width: 400),
+        imageUrl: Places.photoUrl(p.photoName!, width: width > 200 ? 1200 : 400),
         cacheKey: 'gp:${p.photoName}',
         httpHeaders: Places.photoHeaders,
         width: width,

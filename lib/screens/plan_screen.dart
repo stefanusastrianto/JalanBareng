@@ -73,12 +73,14 @@ class _PlanScreenState extends State<PlanScreen> {
             decoration: cardBox(color: C.coralSoft, border: C.coralSoft, radius: 14),
             child: Text(s.dataError!, style: const TextStyle(color: C.bad, fontWeight: FontWeight.w700)),
           ),
-        if (days.isEmpty && s.isAdmin && s.dataError == null)
+        if (days.isEmpty && s.dataError == null)
           Container(
             margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             decoration: cardBox(color: C.skySoft, border: C.skySoft, radius: 14),
-            child: const Text('Belum ada agenda. Kalau data dari versi web belum masuk, buka tab Admin → "Impor ulang data dari versi web".'),
+            child: Text(s.tripId == 'main'
+                ? 'Belum ada agenda. Kalau data dari versi web belum masuk, buka tab Admin → "Impor ulang data dari versi web".'
+                : 'Belum ada agenda. Ketuk tombol Chat di tengah bawah, lalu ketik rencana perjalanan atau kirim foto/PDF itinerary dan e-tiket. Jadwal per hari disusun otomatis.'),
           ),
         if (!s.isViewer) const NewMediaBanner(),
         if (day != null) _focusBox(context, s, day, days, today),
@@ -106,7 +108,9 @@ class _PlanScreenState extends State<PlanScreen> {
       decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: C.tosca, width: 2)),
       clipBehavior: Clip.antiAlias,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        AspectRatio(aspectRatio: 360 / 130, child: SvgPicture.string(sceneSvg(s.cityFor(day)), fit: BoxFit.cover)),
+        AspectRatio(
+            aspectRatio: 360 / 150,
+            child: CityCover(day, key: ValueKey('cover-$day'), fallback: SvgPicture.string(sceneSvg(s.cityFor(day)), fit: BoxFit.cover))),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
           child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -114,7 +118,7 @@ class _PlanScreenState extends State<PlanScreen> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(kicker, style: const TextStyle(color: C.coral, fontWeight: FontWeight.w800, fontSize: 11.5, letterSpacing: 1.2)),
                 Text(dayLabel(day), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-                Text('${s.cityLabel(day)} · ${its.length} agenda${open > 0 ? ' · $open belum dibooking' : ''}', style: const TextStyle(color: C.muted)),
+                Text('${holidayOf(day).isEmpty ? '' : '${holidayOf(day)} · '}${s.cityLabel(day)} · ${its.length} agenda${open > 0 ? ' · $open belum dibooking' : ''}', style: const TextStyle(color: C.muted)),
               ]),
             ),
             IconButton.outlined(onPressed: idx > 0 ? () => setState(() => s.focusDay = days[idx - 1]) : null, icon: const Icon(Icons.chevron_left)),
@@ -240,7 +244,8 @@ class _PlanScreenState extends State<PlanScreen> {
         Row(children: [
           Text(dayLabel(d), style: TextStyle(fontWeight: FontWeight.w800, color: d == today ? C.coral : C.ink)),
           const SizedBox(width: 6),
-          Pill(s.cityLabel(d), fg: C.muted, bg: C.sunk),
+          Flexible(child: Pill(s.cityLabel(d), fg: C.muted, bg: C.sunk)),
+          if (holidayOf(d).isNotEmpty) ...[const SizedBox(width: 4), Pill(holidayOf(d), fg: Colors.white, bg: C.coral)],
           const Spacer(),
           if (s.mediaOn(d).isNotEmpty)
             TextButton.icon(

@@ -113,6 +113,18 @@ Cara pakai:
 
 ---
 
+## Langkah 10 — Banyak trip (versi 2.0)
+
+1. Firebase → **Firestore Database → Rules** → ganti dengan isi `firestore.rules` terbaru → **Publish**.
+2. Firebase → **Storage → Rules** → ganti dengan isi `storage.rules` terbaru → **Publish**.
+3. Di aplikasi (sebagai pemilik): **Admin → Pembuat trip → Ubah** → isi email Google orang yang boleh membuat trip.
+
+Cara pakai:
+- Ketuk nama trip di bagian atas untuk pindah trip atau **Buat trip baru** (nama, tanggal, kota tujuan).
+- Isi jadwal lewat **Chat**: ketik rencana, kirim foto/PDF itinerary atau e-tiket.
+- Kota per hari dan foto sampul (foto kota dari Google Maps) diisi otomatis.
+- Setiap trip punya anggota, admin (boleh lebih dari satu), biaya, galeri, dan recap sendiri.
+
 ## Kalau ada masalah
 
 | Gejala | Penyebab paling umum |

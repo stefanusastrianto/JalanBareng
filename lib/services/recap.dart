@@ -128,7 +128,7 @@ class RecapService extends ChangeNotifier {
       // 4) Simpan ke cloud supaya anggota lain bisa menonton.
       _set('Menyimpan ke cloud…', 0.92);
       final ref = s.col('recaps').doc();
-      final path = 'trip/recaps/${ref.id}.mp4';
+      final path = '${s.storagePrefix}/recaps/${ref.id}.mp4';
       final sref = FirebaseStorage.instance.ref(path);
       await sref.putFile(File(out), SettableMetadata(contentType: 'video/mp4'));
       final url = await sref.getDownloadURL();

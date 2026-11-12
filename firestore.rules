@@ -1,36 +1,62 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function tripDoc() {
-      return get(/databases/$(database)/documents/trips/main);
-    }
     function signedIn() {
       return request.auth != null && request.auth.token.email != null;
     }
-    function myEmail() {
+    function me() {
       return request.auth.token.email.lower();
     }
-    function isMember() {
-      return signedIn() && myEmail() in tripDoc().data.memberEmails;
+    function tripData(t) {
+      return get(/databases/$(database)/documents/trips/$(t)).data;
+    }
+    function isMember(t) {
+      return signedIn() && me() in tripData(t).memberEmails;
+    }
+    function isTripAdmin(data) {
+      return me() == data.adminEmail || me() in data.get('adminEmails', []);
+    }
+    function settingsPath() {
+      return /databases/$(database)/documents/app/settings;
+    }
+    // Pemilik aplikasi: admin trip pertama ("main"), atau ownerEmail di app/settings.
+    function isOwner() {
+      return signedIn() && (exists(settingsPath())
+        ? me() == get(settingsPath()).data.ownerEmail
+        : me() == tripData('main').adminEmail);
+    }
+    function canCreateTrips() {
+      return isOwner() || (signedIn() && exists(settingsPath()) && me() in get(settingsPath()).data.get('creatorEmails', []));
     }
 
-    match /trips/main {
-      // Boleh dibaca anggota; sebelum trip dibuat, siapa pun yang login boleh melihat bahwa trip belum ada.
-      allow read: if isMember() || (signedIn() && !exists(/databases/$(database)/documents/trips/main));
-      // Orang pertama yang membuka aplikasi membuat trip dan menjadi admin.
-      allow create: if signedIn()
-        && myEmail() in request.resource.data.memberEmails
-        && request.resource.data.adminEmail == myEmail();
-      // Hanya admin yang boleh mengubah daftar anggota dan admin.
-      allow update: if isMember() && (
-        myEmail() == resource.data.adminEmail
-        || (request.resource.data.memberEmails == resource.data.memberEmails
-            && request.resource.data.adminEmail == resource.data.adminEmail)
+    // Siapa saja yang boleh membuat trip baru (diatur pemilik di tab Admin).
+    match /app/settings {
+      allow read: if signedIn();
+      allow create: if isOwner() && request.resource.data.ownerEmail == me();
+      allow update: if isOwner() && request.resource.data.ownerEmail == resource.data.ownerEmail;
+    }
+
+    // Preferensi pribadi (trip terakhir dibuka).
+    match /users/{email} {
+      allow read, write: if signedIn() && me() == email;
+    }
+
+    match /trips/{tripId} {
+      // Daftar "Trip saya": hanya trip yang memuat email pengguna.
+      allow read: if signedIn() && me() in resource.data.memberEmails;
+      allow create: if canCreateTrips()
+        && me() in request.resource.data.memberEmails
+        && request.resource.data.adminEmail == me();
+      // Admin boleh mengubah anggota/admin; anggota biasa hanya field lain.
+      allow update: if signedIn() && me() in resource.data.memberEmails && (
+        isTripAdmin(resource.data)
+        || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['memberEmails', 'adminEmail', 'adminEmails'])
       );
-    }
+      allow delete: if signedIn() && isTripAdmin(resource.data) && tripId != 'main';
 
-    match /trips/main/{collection}/{docId} {
-      allow read, write: if isMember();
+      match /{collection}/{docId} {
+        allow read, write: if isMember(tripId);
+      }
     }
   }
 }

@@ -44,6 +44,7 @@ final kCities = <String, CityInfo>{
   'solo': CityInfo('Solo', RegExp(r'\bsolo\b|surakarta', caseSensitive: false)),
   'klaten': CityInfo('Klaten', RegExp(r'klaten|prambanan', caseSensitive: false)),
   'jogja': CityInfo('Yogyakarta', RegExp(r'jogja|yogya', caseSensitive: false)),
+  'kutoarjo': CityInfo('Kutoarjo', RegExp(r'kutoarjo|purworejo', caseSensitive: false)),
   'jakarta': CityInfo('Jakarta', RegExp(r'jakarta|gambir|pasar senen|halim', caseSensitive: false)),
   'natal': const CityInfo('Natal'),
   'istirahat': const CityInfo('Santai'),
@@ -275,3 +276,46 @@ class Recap {
   int get durationMs => intOrNull(d['durationMs']) ?? 0;
   num get createdAt => (d['createdAt'] is num) ? d['createdAt'] as num : 0;
 }
+
+/// Ringkasan satu trip untuk daftar "Trip saya".
+class TripInfo {
+  final String id;
+  final Map<String, dynamic> d;
+  TripInfo(this.id, this.d);
+  String get name => str(d['name']).isEmpty ? 'Trip' : str(d['name']);
+  String get start => str(d['start']);
+  String get end => str(d['end']);
+  String get adminEmail => str(d['adminEmail']).toLowerCase();
+  int get memberCount => ((d['memberEmails'] as List?) ?? const []).length;
+  String get destinations => str(d['destinations']);
+
+  /// 'now' · 'soon' · 'past'
+  String get phase {
+    final today = isoDate(DateTime.now());
+    if (end.isNotEmpty && end.compareTo(today) < 0) return 'past';
+    if (start.isNotEmpty && start.compareTo(today) <= 0) return 'now';
+    return 'soon';
+  }
+
+  String get range {
+    if (start.length < 10 || end.length < 10) return '';
+    return '${shortDay(start)} – ${shortDay(end)} ${end.substring(0, 4)}';
+  }
+}
+
+/// Hari besar bertanggal tetap (untuk label kecil di jadwal).
+String holidayOf(String day) {
+  if (day.length < 10) return '';
+  return const {
+        '01-01': 'Tahun Baru',
+        '08-17': 'HUT RI',
+        '12-24': 'Malam Natal',
+        '12-25': 'Natal',
+        '12-31': 'Malam Tahun Baru',
+      }[day.substring(5)] ??
+      '';
+}
+
+const kSpecialDays = {'natal', 'istirahat', 'pulang', 'jalan'};
+
+String titleCase(String s) => s.split(' ').map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}').join(' ');

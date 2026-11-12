@@ -19,11 +19,26 @@ class AppState extends ChangeNotifier {
   static final AppState I = AppState._();
 
   final FirebaseFirestore db = FirebaseFirestore.instance;
-  DocumentReference<Map<String, dynamic>> get tripRef => db.collection('trips').doc(Config.tripId);
+
+  /// Trip yang sedang dibuka. 'main' = trip pertama (liburan Desember 2026).
+  String tripId = '';
+  DocumentReference<Map<String, dynamic>> get tripRef => db.collection('trips').doc(tripId.isEmpty ? 'main' : tripId);
   CollectionReference<Map<String, dynamic>> col(String name) => tripRef.collection(name);
+
+  /// Awalan path Firebase Storage untuk trip ini (trip lama memakai "trip/").
+  String get storagePrefix => tripId == 'main' ? 'trip' : 't/$tripId';
 
   User? user;
   String get email => (user?.email ?? '').toLowerCase();
+
+  // daftar trip milik pengguna
+  List<TripInfo> myTrips = [];
+  bool tripsLoaded = false;
+  String? tripsError;
+
+  // pengaturan aplikasi: siapa yang boleh membuat trip
+  Map<String, dynamic>? settings;
+  bool settingsLoaded = false;
 
   Map<String, dynamic>? trip;
   bool tripLoaded = false;
@@ -52,19 +67,98 @@ class AppState extends ChangeNotifier {
   String typing = '';
   String? focusDay;
 
+  final List<StreamSubscription> _userSubs = [];
   final List<StreamSubscription> _subs = [];
   bool _colsOn = false;
   Timer? _notifTimer;
+  String _lastTrip = '';
 
   // ---------- lifecycle ----------
   void begin(User u) {
     user = u;
+    for (final s in [..._userSubs, ..._subs]) {
+      s.cancel();
+    }
+    _userSubs.clear();
+    _subs.clear();
+    tripsLoaded = false;
+    settingsLoaded = false;
+    tripId = '';
+    _userSubs.add(db.collection('users').doc(email).snapshots().listen((d) {
+      _lastTrip = str(d.data()?['lastTrip']);
+    }, onError: (_) {}));
+    _userSubs.add(db.collection('app').doc('settings').snapshots().listen((d) {
+      settings = d.data();
+      settingsLoaded = true;
+      notifyListeners();
+    }, onError: (_) {
+      settingsLoaded = true;
+      notifyListeners();
+    }));
+    _userSubs.add(db.collection('trips').where('memberEmails', arrayContains: email).snapshots().listen((q) {
+      myTrips = q.docs.map((d) => TripInfo(d.id, d.data())).toList()..sort((a, b) => a.start.compareTo(b.start));
+      tripsLoaded = true;
+      tripsError = null;
+      if (tripId.isEmpty || !myTrips.any((t) => t.id == tripId)) {
+        final pick = _pickTrip();
+        if (pick != null) {
+          openTrip(pick, remember: false);
+        } else {
+          _closeTrip();
+        }
+      }
+      notifyListeners();
+    }, onError: (Object e) {
+      tripsLoaded = true;
+      tripsError = e.toString();
+      notifyListeners();
+    }));
+  }
+
+  /// Trip yang dibuka otomatis: terakhir dibuka → sedang berjalan → terdekat yang akan datang → terbaru.
+  String? _pickTrip() {
+    if (myTrips.isEmpty) return null;
+    if (myTrips.any((t) => t.id == _lastTrip)) return _lastTrip;
+    final today = isoDate(DateTime.now());
+    for (final t in myTrips) {
+      if (t.start.compareTo(today) <= 0 && t.end.compareTo(today) >= 0) return t.id;
+    }
+    for (final t in myTrips) {
+      if (t.start.compareTo(today) > 0) return t.id;
+    }
+    return myTrips.last.id;
+  }
+
+  void _closeTrip() {
     for (final s in _subs) {
       s.cancel();
     }
     _subs.clear();
     _colsOn = false;
+    tripId = '';
+    trip = null;
+    items = [];
+    expenses = [];
+    members = [];
+    messages = [];
+    media = [];
+    recaps = [];
+    skippedAssets = [];
+    focusDay = null;
     tripLoaded = false;
+    dataError = null;
+    accessError = null;
+  }
+
+  /// Buka trip lain.
+  void openTrip(String id, {bool remember = true}) {
+    if (id == tripId && trip != null) return;
+    _closeTrip();
+    tripId = id;
+    if (remember && email.isNotEmpty) {
+      _lastTrip = id;
+      db.collection('users').doc(email).set({'lastTrip': id}, SetOptions(merge: true)).catchError((_) {});
+    }
     _subs.add(tripRef.snapshots(includeMetadataChanges: true).listen((s) {
       trip = s.data();
       tripLoaded = true;
@@ -78,24 +172,19 @@ class AppState extends ChangeNotifier {
       accessError = e.toString();
       notifyListeners();
     }));
+    notifyListeners();
   }
 
   void stop() {
-    for (final s in _subs) {
+    for (final s in _userSubs) {
       s.cancel();
     }
-    _subs.clear();
-    _colsOn = false;
+    _userSubs.clear();
+    _closeTrip();
     user = null;
-    trip = null;
-    items = [];
-    expenses = [];
-    members = [];
-    messages = [];
-    media = [];
-    recaps = [];
-    skippedAssets = [];
-    tripLoaded = false;
+    myTrips = [];
+    tripsLoaded = false;
+    settings = null;
     notifyListeners();
   }
 
@@ -141,9 +230,69 @@ class AppState extends ChangeNotifier {
     }));
   }
 
+  // ---------- pembuat trip & admin ----------
+  /// Pemilik aplikasi: pengatur daftar pembuat trip (admin trip pertama).
+  String get ownerEmail => str(settings?['ownerEmail']).toLowerCase();
+  List<String> get creatorEmails => ((settings?['creatorEmails'] as List?) ?? const []).map((e) => e.toString().toLowerCase()).toList();
+  bool get isOwner => email.isNotEmpty && (ownerEmail.isNotEmpty ? email == ownerEmail : myTrips.any((t) => t.id == 'main' && t.adminEmail == email));
+  bool get canCreateTrips => isOwner || creatorEmails.contains(email);
+
+  Future<void> saveCreators(List<String> emails) async {
+    final clean = emails.map((e) => e.trim().toLowerCase()).where((e) => e.contains('@')).toSet().toList();
+    await db.collection('app').doc('settings').set({'ownerEmail': ownerEmail.isEmpty ? email : ownerEmail, 'creatorEmails': clean}, SetOptions(merge: true));
+  }
+
+  /// Buat trip baru; pembuat menjadi admin.
+  Future<String> createTrip({required String name, required String start, required String end, String destinations = ''}) async {
+    final ref = db.collection('trips').doc();
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await ref.set({
+      'name': name,
+      'start': start,
+      'end': end,
+      'destinations': destinations,
+      'memberEmails': [email],
+      'adminEmail': email,
+      'adminEmails': [email],
+      'geminiModel': Config.geminiModelDefault,
+      'syncedEmailIds': [],
+      'dayCities': {},
+      'createdAt': now,
+      'createdBy': email,
+    });
+    await ref.collection('members').add({
+      'name': user?.displayName?.split(' ').first ?? 'Admin',
+      'email': email,
+      'phone': '',
+      'role': 'anggota',
+      'createdAt': now,
+    });
+    await ref.collection('messages').add({
+      'role': 'assistant',
+      'author': email,
+      'authorName': 'Jalan Bareng',
+      'text': 'Trip "$name" dibuat (${shortDay(start)} – ${shortDay(end)}). Kirim itinerary di sini: ketik rencananya, foto/PDF jadwal, atau e-tiket. '
+          'Saya susun jadwalnya per hari.',
+      'actions': [],
+      'processed': true,
+      'createdAt': now,
+    });
+    openTrip(ref.id);
+    return ref.id;
+  }
+
+  Future<void> deleteTrip() async {
+    if (tripId.isEmpty || tripId == 'main') return;
+    await tripRef.delete();
+  }
+
   // ---------- derived ----------
   String get adminEmail => str(trip?['adminEmail']).toLowerCase();
-  bool get isAdmin => email.isNotEmpty && email == adminEmail;
+  List<String> get adminEmails => {adminEmail, ...((trip?['adminEmails'] as List?) ?? const []).map((e) => e.toString().toLowerCase())}
+      .where((e) => e.isNotEmpty)
+      .toList();
+  bool get isAdmin => email.isNotEmpty && adminEmails.contains(email);
+  bool isAdminEmail(String e) => adminEmails.contains(e.toLowerCase());
   String get tripName => str(trip?['name']).isEmpty ? 'Jalan Bareng' : str(trip?['name']);
   String get start => str(trip?['start']);
   String get end => str(trip?['end']);
@@ -205,13 +354,19 @@ class AppState extends ChangeNotifier {
 
   List<String> activeDays() => tripDays().where((d) => items.any((i) => i.date == d)).toList();
 
+  /// Kota (atau penanda hari khusus) untuk satu tanggal. Nilai dayCities bisa kunci bawaan
+  /// (bandung, natal, istirahat, …) atau nama kota bebas (mis. "Denpasar").
   String cityFor(String day) {
     final map = (trip?['dayCities'] as Map?) ?? const {};
     final v = map[day];
-    if (v is String && v.isNotEmpty) return v;
+    if (v is String && v.trim().isNotEmpty) return v.trim().toLowerCase();
     String? last;
     for (final d in tripDays()) {
       if (d.compareTo(day) > 0) break;
+      final dv = map[d];
+      if (dv is String && dv.trim().isNotEmpty && !kSpecialDays.contains(dv.trim().toLowerCase())) {
+        last = dv.trim().toLowerCase();
+      }
       final txt = items.where((i) => i.date == d).map((i) => '${i.title} ${i.location} ${i.detail}').join(' ');
       String? found;
       var pos = -1;
@@ -225,27 +380,42 @@ class AppState extends ChangeNotifier {
         }
       });
       if (found != null) last = found;
-      if (d == day) {
-        if (RegExp(r'-12-2[45]$').hasMatch(d)) return 'natal';
-        return last ?? 'jalan';
-      }
+      if (d == day) return last ?? 'jalan';
     }
     return last ?? 'jalan';
   }
 
+  bool _isRealCity(String c) => !kSpecialDays.contains(c);
+
   String realCity(String day) {
     final c = cityFor(day);
-    if (kCities[c]?.re != null) return c;
+    if (_isRealCity(c)) return c;
     final days = tripDays().where((x) => x.compareTo(day) < 0).toList().reversed;
     for (final d in days) {
       final k = cityFor(d);
-      if (kCities[k]?.re != null) return k;
+      if (_isRealCity(k)) return k;
     }
     return c;
   }
 
-  String cityLabel(String day) => kCities[cityFor(day)]?.label ?? '';
-  String realCityLabel(String day) => kCities[realCity(day)]?.label ?? '';
+  String _label(String k) => kCities[k]?.label ?? titleCase(k);
+  String cityLabel(String day) {
+    final k = cityFor(day);
+    if (kSpecialDays.contains(k)) {
+      final real = realCity(day);
+      return _isRealCity(real) ? '${_label(k)} · ${_label(real)}' : _label(k);
+    }
+    return _label(k);
+  }
+
+  String realCityLabel(String day) {
+    final c = realCity(day);
+    return _isRealCity(c) ? _label(c) : '';
+  }
+
+  /// Place ID foto sampul kota (disimpan per nama kota di dokumen trip).
+  String cityPlaceId(String label) => str(((trip?['cityPlaceIds'] as Map?) ?? const {})[label.toLowerCase().replaceAll('.', '')]);
+  Future<void> setCityPlaceId(String label, String id) => tripRef.update({'cityPlaceIds.${label.toLowerCase().replaceAll('.', '')}': id});
 
   List<Msg> get pending => messages.where((m) => m.role == 'user' && !m.processed).toList();
   int get todoBookings => items.where((i) => i.needsBooking && !i.booked).length;
@@ -333,7 +503,8 @@ class AppState extends ChangeNotifier {
     if (m.email.isNotEmpty) await tripRef.update({'memberEmails': FieldValue.arrayRemove([m.email])});
   }
 
-  Future<void> makeAdmin(Member m) => tripRef.update({'adminEmail': m.email});
+  Future<void> makeAdmin(Member m) => tripRef.update({'adminEmails': FieldValue.arrayUnion([m.email])});
+  Future<void> removeAdmin(Member m) => tripRef.update({'adminEmails': FieldValue.arrayRemove([m.email])});
 
   // ---------- files (foto e-tiket / struk, disimpan kecil di Firestore agar tersedia offline) ----------
   Future<String?> saveFile(String name, String mime, Uint8List bytes) async {

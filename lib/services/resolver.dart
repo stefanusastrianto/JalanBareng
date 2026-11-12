@@ -18,6 +18,39 @@ class PlaceResolver {
 
   static const _placeTypes = {'hotel', 'makan', 'wisata', 'ibadah', 'kereta', 'pesawat'};
 
+  String _citiesKey = '';
+
+  /// Tentukan kota utama per hari (untuk sampul & saran) bila trip belum punya, sekali per isi itinerary.
+  Future<void> _inferCities() async {
+    final s = AppState.I;
+    if (s.items.isEmpty || s.isViewer) return;
+    final map = (s.trip?['dayCities'] as Map?) ?? const {};
+    final days = s.tripDays();
+    final missing = days.where((d) => str(map[d]).isEmpty).toList();
+    if (missing.isEmpty) return;
+    final key = '${s.tripId}:${s.items.length}:${missing.length}';
+    if (key == _citiesKey) return;
+    _citiesKey = key;
+    final lines = s.sorted().map((i) => '${i.date} ${i.time} | ${i.type} | ${i.title} | ${i.location} | ${i.from} → ${i.to}').join('\n');
+    final prompt = '''Itinerary trip "${s.tripName}" (${s.start} s.d. ${s.end})${str(s.trip?['destinations']).isEmpty ? '' : ', tujuan: ${s.trip?['destinations']}'}:
+$lines
+
+Untuk setiap tanggal berikut, tentukan nama KOTA tempat keluarga berada/menginap hari itu (nama kota saja, mis. "Denpasar", "Ubud", "Yogyakarta"):
+${missing.join(', ')}
+Jawab JSON saja: {"days":{"YYYY-MM-DD":"Kota"}}''';
+    try {
+      final j = await Gemini.json(prompt);
+      final m = j is Map ? (j['days'] as Map? ?? const {}) : const {};
+      final upd = <String, dynamic>{};
+      m.forEach((k, v) {
+        final d = str(k);
+        final c = str(v).trim();
+        if (missing.contains(d) && c.isNotEmpty && c.length < 40) upd['dayCities.$d'] = c;
+      });
+      if (upd.isNotEmpty) await s.tripRef.update(upd);
+    } catch (_) {}
+  }
+
   bool _needs(Item i) {
     if (!_placeTypes.contains(i.type)) return false;
     if (_failed.contains('${i.id}:${i.contentKey}')) return false;
@@ -28,7 +61,9 @@ class PlaceResolver {
   void schedule() {
     final s = AppState.I;
     if (!Places.enabled || s.isViewer || s.user == null) return;
-    if (!s.items.any(_needs)) return;
+    final map = (s.trip?['dayCities'] as Map?) ?? const {};
+    final citiesMissing = s.items.isNotEmpty && s.tripDays().any((d) => str(map[d]).isEmpty);
+    if (!s.items.any(_needs) && !citiesMissing) return;
     _timer?.cancel();
     _timer = Timer(const Duration(seconds: 4), run);
   }
@@ -40,6 +75,7 @@ class PlaceResolver {
     }
     _running = true;
     try {
+      await _inferCities();
       do {
         _again = false;
         final s = AppState.I;

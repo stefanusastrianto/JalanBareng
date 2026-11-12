@@ -216,3 +216,61 @@ class _Option extends StatelessWidget {
         );
       });
 }
+
+/// Sampul hari: foto kota tujuan dari Google Maps (ilustrasi sebagai cadangan).
+class CityCover extends StatefulWidget {
+  final String day;
+  final Widget fallback;
+  const CityCover(this.day, {super.key, required this.fallback});
+  @override
+  State<CityCover> createState() => _CityCoverState();
+}
+
+class _CityCoverState extends State<CityCover> {
+  static final Map<String, Future<PlaceInfo?>> _pending = {};
+
+  Future<PlaceInfo?> _load(String label) {
+    return _pending.putIfAbsent(label, () async {
+      final s = AppState.I;
+      final known = s.cityPlaceId(label);
+      if (known.isNotEmpty) return Places.details(known);
+      final res = await Places.search(label, max: 1);
+      if (res.isEmpty) return null;
+      if (!s.isViewer) s.setCityPlaceId(label, res.first.id).catchError((_) {});
+      return res.first;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final label = AppState.I.realCityLabel(widget.day);
+    if (!Places.enabled || label.isEmpty) return widget.fallback;
+    return FutureBuilder<PlaceInfo?>(
+      future: _load(label),
+      builder: (c, snap) {
+        final p = snap.data;
+        if (p == null || p.photoName == null) return widget.fallback;
+        return LayoutBuilder(
+          builder: (c, bc) => Stack(fit: StackFit.expand, children: [
+            PlacePhoto(p, width: bc.maxWidth, height: bc.maxHeight, radius: 0),
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                  gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Color(0x66000000)])),
+            ),
+            Positioned(
+              left: 12,
+              bottom: 8,
+              right: 12,
+              child: Row(children: [
+                Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 18, shadows: [Shadow(blurRadius: 6)])),
+                const Spacer(),
+                Text(p.photoAuthor.isEmpty ? 'Google Maps' : 'Foto: ${p.photoAuthor} · Google Maps',
+                    style: const TextStyle(color: Colors.white70, fontSize: 9.5)),
+              ]),
+            ),
+          ]),
+        );
+      },
+    );
+  }
+}

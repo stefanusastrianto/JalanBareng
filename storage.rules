@@ -1,15 +1,22 @@
 rules_version = '2';
-// Foto, video, dan recap trip hanya bisa dibaca dan diunggah oleh email anggota trip.
+// Foto, video, dan recap hanya bisa dibaca dan diunggah oleh email anggota trip tersebut.
 service firebase.storage {
   match /b/{bucket}/o {
-    function isMember() {
+    function isMemberOf(t) {
       return request.auth != null && request.auth.token.email != null
-        && request.auth.token.email.lower() in firestore.get(/databases/(default)/documents/trips/main).data.memberEmails;
+        && request.auth.token.email.lower() in firestore.get(/databases/(default)/documents/trips/$(t)).data.memberEmails;
     }
+    // Trip pertama (liburan Desember 2026)
     match /trip/{allPaths=**} {
-      allow read: if isMember();
-      allow create, update: if isMember() && request.resource.size < 300 * 1024 * 1024;
-      allow delete: if isMember();
+      allow read: if isMemberOf('main');
+      allow create, update: if isMemberOf('main') && request.resource.size < 300 * 1024 * 1024;
+      allow delete: if isMemberOf('main');
+    }
+    // Trip lain
+    match /t/{tripId}/{allPaths=**} {
+      allow read: if isMemberOf(tripId);
+      allow create, update: if isMemberOf(tripId) && request.resource.size < 300 * 1024 * 1024;
+      allow delete: if isMemberOf(tripId);
     }
   }
 }

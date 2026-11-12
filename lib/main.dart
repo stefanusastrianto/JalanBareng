@@ -13,6 +13,7 @@ import 'screens/checklist_screen.dart';
 import 'screens/common.dart';
 import 'screens/cost_screen.dart';
 import 'screens/gallery_screen.dart';
+import 'screens/trips_screen.dart';
 import 'screens/plan_screen.dart';
 
 Future<void> main() async {
@@ -121,30 +122,32 @@ class TripGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = AppState.I;
-    if (!s.tripLoaded) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    if (s.accessError != null) return _NoAccess(email: s.email);
-    if (s.tripMissing) return const SetupScreen();
-    if (s.trip == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    const wait = Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (!s.tripsLoaded) return wait;
+    if (s.tripsError != null) return _NoAccess(email: s.email, detail: s.tripsError);
+    if (s.myTrips.isEmpty) {
+      if (!s.settingsLoaded) return wait;
+      return s.canCreateTrips ? const _FirstTrip() : _NoAccess(email: s.email);
+    }
+    if (s.accessError != null) return _NoAccess(email: s.email, detail: s.accessError);
+    if (!s.tripLoaded || s.trip == null) return wait;
     return HomeShell(); // tidak const: agar ikut dibangun ulang saat data berubah
   }
 }
 
-class _NoAccess extends StatelessWidget {
-  final String email;
-  const _NoAccess({required this.email});
+class _FirstTrip extends StatelessWidget {
+  const _FirstTrip();
   @override
   Widget build(BuildContext context) => Scaffold(
         body: SafeArea(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
-            child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              const Icon(Icons.lock_outline, size: 48, color: C.coral),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Center(child: ClipRRect(borderRadius: BorderRadius.circular(28), child: Image.asset('assets/logo.png', width: 120, height: 120))),
+              const SizedBox(height: 16),
+              const CreateTripForm(),
               const SizedBox(height: 12),
-              Text('Email $email belum terdaftar di trip ini.', textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 8),
-              const Text('Minta admin menambahkan email Anda di tab Admin, lalu buka aplikasi lagi.', textAlign: TextAlign.center),
-              const SizedBox(height: 20),
-              OutlinedButton(
+              TextButton(
                   onPressed: () async {
                     AppState.I.stop();
                     await AuthService.I.signOut();
@@ -156,54 +159,36 @@ class _NoAccess extends StatelessWidget {
       );
 }
 
-class SetupScreen extends StatefulWidget {
-  const SetupScreen({super.key});
-  @override
-  State<SetupScreen> createState() => _SetupScreenState();
-}
-
-class _SetupScreenState extends State<SetupScreen> {
-  bool busy = false;
-  String? lastError;
-  Future<void> _run(Future<void> Function() f) async {
-    setState(() => busy = true);
-    try {
-      await f();
-    } catch (e) {
-      if (mounted) toast(context, 'Gagal: $e');
-      lastError = e.toString();
-    }
-    if (mounted) setState(() => busy = false);
-  }
-
+class _NoAccess extends StatelessWidget {
+  final String email;
+  final String? detail;
+  const _NoAccess({required this.email, this.detail});
   @override
   Widget build(BuildContext context) => Scaffold(
         body: SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              const Text('Selamat datang', textAlign: TextAlign.center, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
+              const Icon(Icons.lock_outline, size: 48, color: C.coral),
+              const SizedBox(height: 12),
+              Text('Email $email belum terdaftar di trip mana pun.', textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
               const SizedBox(height: 8),
-              const Text('Belum ada trip. Impor data liburan keluarga dari versi web (jadwal, booking, dan biaya yang sudah tercatat), atau mulai trip kosong. Anda akan menjadi admin.',
-                  textAlign: TextAlign.center, style: TextStyle(color: C.muted)),
-              const SizedBox(height: 24),
-              FilledButton(onPressed: busy ? null : () => _run(() async => AppState.I.importSeed()), child: const Text('Impor data dari versi web')),
-              const SizedBox(height: 10),
+              const Text('Minta admin trip menambahkan email Anda di tab Admin. Trip akan muncul otomatis.', textAlign: TextAlign.center),
+              if (detail != null) ...[
+                const SizedBox(height: 10),
+                Text(detail!, textAlign: TextAlign.center, style: const TextStyle(color: C.muted, fontSize: 11)),
+              ],
+              const SizedBox(height: 20),
               OutlinedButton(
-                  onPressed: busy
-                      ? null
-                      : () => _run(() => AppState.I.createEmptyTrip('Trip baru', isoNow(), isoNow())),
-                  child: const Text('Mulai trip kosong')),
-              if (busy) const Padding(padding: EdgeInsets.only(top: 16), child: Center(child: CircularProgressIndicator())),
+                  onPressed: () async {
+                    AppState.I.stop();
+                    await AuthService.I.signOut();
+                  },
+                  child: const Text('Masuk dengan akun lain')),
             ]),
           ),
         ),
       );
-}
-
-String isoNow() {
-  final d = DateTime.now();
-  return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 }
 
 class HomeShell extends StatefulWidget {
@@ -247,13 +232,22 @@ class _HomeShellState extends State<HomeShell> {
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 16,
-        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(tab == 0 ? s.tripName : titles[tab], style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+        title: InkWell(
+          onTap: () => openTripSwitcher(context),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            Flexible(
+              child: Text(tab == 0 ? s.tripName : '${titles[tab]} · ${s.tripName}',
+                  maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+            ),
+            const Icon(Icons.expand_more, size: 20),
+          ]),
           Text(
             s.start.length < 10 || s.end.length < 10 ? '' : '${s.start.substring(8)}/${s.start.substring(5, 7)} – ${s.end.substring(8)}/${s.end.substring(5, 7)}/${s.end.substring(0, 4)} · ${s.members.length} anggota',
             style: const TextStyle(fontSize: 12, color: C.muted),
           ),
         ]),
+        ),
         actions: [
           IconButton(
             tooltip: 'Foto & video',
