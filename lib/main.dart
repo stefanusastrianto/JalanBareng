@@ -164,12 +164,14 @@ class SetupScreen extends StatefulWidget {
 
 class _SetupScreenState extends State<SetupScreen> {
   bool busy = false;
+  String? lastError;
   Future<void> _run(Future<void> Function() f) async {
     setState(() => busy = true);
     try {
       await f();
     } catch (e) {
       if (mounted) toast(context, 'Gagal: $e');
+      lastError = e.toString();
     }
     if (mounted) setState(() => busy = false);
   }
@@ -185,7 +187,7 @@ class _SetupScreenState extends State<SetupScreen> {
               const Text('Belum ada trip. Impor data liburan keluarga dari versi web (jadwal, booking, dan biaya yang sudah tercatat), atau mulai trip kosong. Anda akan menjadi admin.',
                   textAlign: TextAlign.center, style: TextStyle(color: C.muted)),
               const SizedBox(height: 24),
-              FilledButton(onPressed: busy ? null : () => _run(AppState.I.importSeed), child: const Text('Impor data dari versi web')),
+              FilledButton(onPressed: busy ? null : () => _run(() async => AppState.I.importSeed()), child: const Text('Impor data dari versi web')),
               const SizedBox(height: 10),
               OutlinedButton(
                   onPressed: busy

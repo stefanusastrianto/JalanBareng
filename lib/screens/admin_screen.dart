@@ -264,6 +264,42 @@ class _AdminScreenState extends State<AdminScreen> {
               title: const Text('Google Places'),
               subtitle: Text(Places.enabled ? 'Aktif: foto dan rating tempat' : 'Belum aktif: PLACES_API_KEY belum diisi'),
             ),
+            if (s.isAdmin)
+              ListTile(
+                leading: const Icon(Icons.cloud_download_outlined),
+                title: const Text('Impor ulang data dari versi web'),
+                subtitle: const Text('30 agenda + 4 pengeluaran. Agenda yang sama ditimpa; anggota tidak berubah.'),
+                onTap: () async {
+                  final ok = await showDialog<bool>(
+                    context: context,
+                    builder: (c) => AlertDialog(
+                      title: const Text('Impor ulang?'),
+                      content: const Text('Agenda dan pengeluaran dari versi web akan ditulis ulang. Perubahan pada agenda yang sama akan tertimpa. Agenda baru yang Anda tambahkan tetap ada.'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Batal')),
+                        FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Impor')),
+                      ],
+                    ),
+                  );
+                  if (ok != true || !context.mounted) return;
+                  toast(context, 'Mengimpor…');
+                  try {
+                    final msg = await s.importSeed();
+                    if (context.mounted) toast(context, msg);
+                  } catch (e) {
+                    if (context.mounted) {
+                      showDialog(
+                        context: context,
+                        builder: (c) => AlertDialog(
+                          title: const Text('Impor gagal'),
+                          content: SelectableText('$e'),
+                          actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('Tutup'))],
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.add_circle_outline),
               title: const Text('Tambah agenda manual'),

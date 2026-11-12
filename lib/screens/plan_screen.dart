@@ -65,7 +65,21 @@ class _PlanScreenState extends State<PlanScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
       children: [
-        const NewMediaBanner(),
+        if (s.dataError != null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(12),
+            decoration: cardBox(color: C.coralSoft, border: C.coralSoft, radius: 14),
+            child: Text(s.dataError!, style: const TextStyle(color: C.bad, fontWeight: FontWeight.w700)),
+          ),
+        if (days.isEmpty && s.isAdmin && s.dataError == null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(12),
+            decoration: cardBox(color: C.skySoft, border: C.skySoft, radius: 14),
+            child: const Text('Belum ada agenda. Kalau data dari versi web belum masuk, buka tab Admin → "Impor ulang data dari versi web".'),
+          ),
+        if (!s.isViewer) const NewMediaBanner(),
         if (day != null) _focusBox(context, s, day, days, today),
         const SectionTitle('Semua hari'),
         for (final d in s.tripDays()) _dayBlock(context, s, d, today),
@@ -124,7 +138,7 @@ class _PlanScreenState extends State<PlanScreen> {
                     onPressed: () => openGallery(context, day: day),
                     icon: const Icon(Icons.photo_library_outlined, size: 18),
                     label: Text('Foto & video${s.mediaOn(day).isEmpty ? '' : ' (${s.mediaOn(day).length})'}')),
-              if (day.compareTo(today) <= 0 && s.mediaOn(day).isNotEmpty)
+              if (day.compareTo(today) <= 0 && s.mediaOn(day).isNotEmpty && !s.isViewer)
                 OutlinedButton.icon(
                     onPressed: () => openRecap(context, day), icon: const Icon(Icons.movie_creation_outlined, size: 18), label: const Text('Recap hari ini')),
             ]),

@@ -29,6 +29,7 @@ class AppState extends ChangeNotifier {
   bool tripMissing = false;
   String? accessError;
   bool fromCache = false;
+  String? dataError;
 
   List<Item> items = [];
   List<Expense> expenses = [];
@@ -101,10 +102,14 @@ class AppState extends ChangeNotifier {
     if (_colsOn) return;
     _colsOn = true;
     _subs.add(col('items').snapshots().listen((q) {
+      dataError = null;
       items = q.docs.map((d) => Item(d.id, d.data())).toList();
       notifyListeners();
       _notifTimer?.cancel();
       _notifTimer = Timer(const Duration(seconds: 3), () => NotificationService.I.reschedule(this));
+    }, onError: (Object e) {
+      dataError = 'Agenda tidak bisa dibaca: $e. Cek aturan Firestore (README langkah 3).';
+      notifyListeners();
     }));
     _subs.add(col('expenses').snapshots().listen((q) {
       expenses = q.docs.map((d) => Expense(d.id, d.data())).toList();
@@ -347,47 +352,80 @@ class AppState extends ChangeNotifier {
   }
 
   // ---------- import from the web version ----------
-  Future<void> importSeed() async {
+  /// Impor data dari versi web (assets/seed.json). Aman diulang: agenda dan pengeluaran ditulis
+  /// berdasarkan ID-nya, daftar anggota dan admin tidak diubah bila trip sudah ada.
+  /// Ditulis bertahap (8 per paket) supaya tidak melewati batas pengecekan aturan Firestore.
+  Future<String> importSeed() async {
     final raw = await rootBundle.loadString('assets/seed.json');
     final seed = jsonDecode(raw) as Map<String, dynamic>;
     final t = Map<String, dynamic>.from(seed['trip'] as Map);
     final now = DateTime.now().millisecondsSinceEpoch;
-    await tripRef.set({
-      ...t,
-      'memberEmails': [email],
-      'adminEmail': email,
-      'geminiModel': Config.geminiModelDefault,
-      'createdAt': now,
-    });
-    final batch = db.batch();
-    final seedMembers = (seed['members'] as List).cast<Map>();
-    for (var k = 0; k < seedMembers.length; k++) {
-      final m = Map<String, dynamic>.from(seedMembers[k]);
-      final isAdminSeed = m['role'] == 'admin';
-      batch.set(col('members').doc(), {
-        'name': isAdminSeed ? (user?.displayName?.split(' ').first ?? m['name']) : m['name'],
-        'email': isAdminSeed ? email : '',
-        'phone': '',
-        'role': 'anggota',
-        'createdAt': now + k,
+    final existing = await tripRef.get();
+    if (!existing.exists) {
+      await tripRef.set({
+        ...t,
+        'memberEmails': [email],
+        'adminEmail': email,
+        'geminiModel': Config.geminiModelDefault,
+        'createdAt': now,
+      });
+    } else {
+      final old = existing.data() ?? {};
+      final ids = {...((old['syncedEmailIds'] as List?) ?? const []), ...((t['syncedEmailIds'] as List?) ?? const [])}.toList();
+      await tripRef.update({
+        'name': t['name'],
+        'start': t['start'],
+        'end': t['end'],
+        'dayCities': t['dayCities'],
+        'syncedEmailIds': ids,
       });
     }
-    (seed['items'] as Map).forEach((id, v) {
-      batch.set(col('items').doc(id as String), Map<String, dynamic>.from(v as Map));
+
+    final writes = <void Function(WriteBatch)>[];
+    final hasMembers = (await col('members').limit(1).get()).docs.isNotEmpty;
+    if (!hasMembers) {
+      final seedMembers = (seed['members'] as List).cast<Map>();
+      for (var k = 0; k < seedMembers.length; k++) {
+        final m = Map<String, dynamic>.from(seedMembers[k]);
+        final isAdminSeed = m['role'] == 'admin';
+        final data = {
+          'name': isAdminSeed ? (user?.displayName?.split(' ').first ?? m['name']) : m['name'],
+          'email': isAdminSeed ? email : '',
+          'phone': '',
+          'role': 'anggota',
+          'createdAt': now + k,
+        };
+        writes.add((b) => b.set(col('members').doc(), data));
+      }
+    }
+    final items = (seed['items'] as Map);
+    items.forEach((id, v) {
+      final data = Map<String, dynamic>.from(v as Map);
+      writes.add((b) => b.set(col('items').doc(id as String), data));
     });
-    (seed['expenses'] as Map).forEach((id, v) {
-      batch.set(col('expenses').doc(id as String), {...Map<String, dynamic>.from(v as Map), 'createdBy': email});
+    final exps = (seed['expenses'] as Map);
+    exps.forEach((id, v) {
+      final data = {...Map<String, dynamic>.from(v as Map), 'createdBy': email};
+      writes.add((b) => b.set(col('expenses').doc(id as String), data));
     });
-    batch.set(col('messages').doc(), {
+    for (var k = 0; k < writes.length; k += 8) {
+      final batch = db.batch();
+      for (final w in writes.skip(k).take(8)) {
+        w(batch);
+      }
+      await batch.commit();
+    }
+    final msg = 'Data trip diimpor dari versi web: ${items.length} agenda dan ${exps.length} pengeluaran.';
+    await col('messages').add({
       'role': 'assistant',
       'author': email,
       'authorName': 'Jalan Bareng',
-      'text': 'Data trip diimpor dari versi web: ${(seed['items'] as Map).length} agenda dan ${(seed['expenses'] as Map).length} pengeluaran.',
+      'text': msg,
       'actions': [],
       'processed': true,
       'createdAt': now,
     });
-    await batch.commit();
+    return msg;
   }
 
   Future<void> createEmptyTrip(String name, String startDate, String endDate) async {

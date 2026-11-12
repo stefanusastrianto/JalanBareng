@@ -167,8 +167,8 @@ class GalleryScreen extends StatelessWidget {
         return Scaffold(
           appBar: AppBar(title: Text(day == null ? 'Foto & video trip' : 'Foto & video · ${dayLabel(day!)}')),
           body: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 32), children: [
-            const NewMediaBanner(),
-            Wrap(spacing: 8, runSpacing: 8, children: [
+            if (!s.isViewer) const NewMediaBanner(),
+            if (!s.isViewer) Wrap(spacing: 8, runSpacing: 8, children: [
               FilledButton.icon(
                 onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ScanScreen())),
                 icon: const Icon(Icons.add_photo_alternate_outlined),
@@ -227,7 +227,7 @@ class _DaySection extends StatelessWidget {
             child: Text('${dayLabel(d)} · ${s.realCityLabel(d)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
           ),
           Text('${list.length}', style: const TextStyle(color: C.muted)),
-          TextButton(onPressed: () => openRecap(context, d), child: const Text('Recap')),
+          if (!s.isViewer) TextButton(onPressed: () => openRecap(context, d), child: const Text('Recap')),
         ]),
         for (final key in order) ...[
           Padding(
@@ -505,7 +505,7 @@ class _ViewerState extends State<_Viewer> {
         foregroundColor: Colors.white,
         title: Text('${dayLabel(m.date)} · ${m.time}', style: const TextStyle(fontSize: 15)),
         actions: [
-          IconButton(icon: const Icon(Icons.drive_file_move_outlined), tooltip: 'Pindah agenda', onPressed: () => _move(m)),
+          if (!s.isViewer) IconButton(icon: const Icon(Icons.drive_file_move_outlined), tooltip: 'Pindah agenda', onPressed: () => _move(m)),
           if (mine)
             IconButton(
               icon: const Icon(Icons.delete_outline),
