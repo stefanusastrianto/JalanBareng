@@ -6,6 +6,9 @@ on:
     branches: [main]
     paths: ["lib/**", "assets/**", "pubspec.yaml", "tool/**", ".github/workflows/build.yml"]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -79,3 +82,13 @@ jobs:
           name: jalan-bareng-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
+
+      - name: Terbitkan Release (APK bisa diunduh langsung di HP)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')
+          TAG="v$VER-b${{ github.run_number }}"
+          cp build/app/outputs/flutter-apk/app-release.apk app-release.apk
+          gh release create "$TAG" app-release.apk --title "Jalan Bareng $VER (build ${{ github.run_number }})" \
+            --notes "Unduh app-release.apk lalu pasang di HP. Link tetap: https://github.com/${{ github.repository }}/releases/latest/download/app-release.apk" --latest
