@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    paths: ["lib/**", "assets/**", "pubspec.yaml", "tool/**", ".github/workflows/build.yml"]
 
 jobs:
   build:
@@ -41,20 +42,26 @@ jobs:
           KS: ${{ secrets.DEBUG_KEYSTORE_B64 }}
         run: |
           mkdir -p ~/.android
-          echo "$KS" | base64 -d > ~/.android/debug.keystore
+          printf '%s' "$KS" | tr -d '\r\n ' | base64 -d > ~/.android/debug.keystore
 
       - name: Build APK
+        env:
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          FIREBASE_SENDER_ID: ${{ secrets.FIREBASE_SENDER_ID }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PLACES_API_KEY: ${{ secrets.PLACES_API_KEY }}
+          ANDROID_CERT_SHA1: ${{ secrets.ANDROID_CERT_SHA1 }}
         run: |
           flutter pub get
-          flutter build apk --release \
-            --dart-define=FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }} \
-            --dart-define=FIREBASE_APP_ID=${{ secrets.FIREBASE_APP_ID }} \
-            --dart-define=FIREBASE_SENDER_ID=${{ secrets.FIREBASE_SENDER_ID }} \
-            --dart-define=FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }} \
-            --dart-define=GOOGLE_WEB_CLIENT_ID=${{ secrets.GOOGLE_WEB_CLIENT_ID }} \
-            --dart-define=GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} \
-            --dart-define=PLACES_API_KEY=${{ secrets.PLACES_API_KEY }} \
-            --dart-define=ANDROID_CERT_SHA1=${{ secrets.ANDROID_CERT_SHA1 }}
+          args=()
+          for n in FIREBASE_API_KEY FIREBASE_APP_ID FIREBASE_SENDER_ID FIREBASE_PROJECT_ID GOOGLE_WEB_CLIENT_ID GEMINI_API_KEY PLACES_API_KEY ANDROID_CERT_SHA1; do
+            v="$(printf '%s' "${!n}" | tr -d '\r\n ')"
+            args+=("--dart-define=$n=$v")
+          done
+          flutter build apk --release "${args[@]}"
 
       - uses: actions/upload-artifact@v4
         with:

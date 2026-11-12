@@ -24,7 +24,7 @@ class AiError implements Exception {
 }
 
 Map<String, String> androidKeyHeaders() {
-  final sha = Config.androidCertSha1.replaceAll(':', '').toUpperCase();
+  final sha = Config.androidCertSha1.replaceAll(RegExp(r'[\s:]'), '').toUpperCase();
   return sha.isEmpty ? {} : {'X-Android-Package': Config.androidPackage, 'X-Android-Cert': sha};
 }
 
@@ -59,6 +59,7 @@ class Gemini {
     } catch (_) {
       throw AiError('net', 'Tidak ada koneksi internet. Pesan disimpan dan bisa dicatat nanti.');
     }
+    if (res.statusCode == 402) throw AiError('quota', 'Saldo/billing Gemini untuk kunci ini habis atau belum aktif. Pesan disimpan dan bisa dicatat nanti. Admin: cek kunci Gemini.');
     if (res.statusCode == 429) throw AiError('quota', 'Kuota harian Gemini sedang habis. Pesan disimpan dan bisa dicatat nanti.');
     if (res.statusCode == 404) throw AiError('model', 'Model Gemini "$model" tidak ditemukan. Ganti nama model di tab Admin.');
     if (res.statusCode >= 400) {
