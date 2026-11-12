@@ -43,6 +43,8 @@ jobs:
         run: |
           mkdir -p ~/.android
           printf '%s' "$KS" | tr -d '\r\n ' | base64 -d > ~/.android/debug.keystore
+          cp ~/.android/debug.keystore "$RUNNER_TEMP/jb.keystore"
+          echo "JB_KEYSTORE=$RUNNER_TEMP/jb.keystore" >> "$GITHUB_ENV"
 
       - name: Build APK
         env:
@@ -65,8 +67,12 @@ jobs:
           flutter build apk --release "${args[@]}"
 
       - name: Cek tanda tangan APK
+        env:
+          ANDROID_CERT_SHA1: ${{ secrets.ANDROID_CERT_SHA1 }}
         run: |
-          keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk | grep -E "SHA1:|SHA-1:" | sed 's/^/SHA-1 APK (pakai titik): /; s/:/./g'
+          SHA=$(keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk | grep -E "SHA1:" | head -1 | sed 's/.*SHA1: //' | tr -d ' ')
+          echo "SHA-1 APK (pakai titik): $(echo $SHA | tr ':' '.')"
+          if [ "$SHA" != "$(printf '%s' "$ANDROID_CERT_SHA1" | tr -d '\r\n ')" ]; then echo "::error::APK tidak ditandatangani dengan kunci yang terdaftar"; exit 1; fi
 
       - uses: actions/upload-artifact@v4
         with:

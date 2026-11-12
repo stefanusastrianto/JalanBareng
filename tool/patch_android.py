@@ -64,6 +64,18 @@ if groovy.exists():
         g = g.replace("compileOptions {", "compileOptions {\n        coreLibraryDesugaringEnabled true", 1)
     if "minifyEnabled false" not in g:
         g = re.sub(r"(signingConfig\s*=?\s*signingConfigs\.debug)", r"\1\n            minifyEnabled false\n            shrinkResources false", g, count=1)
+    if "JB_KEYSTORE" not in g:
+        g = g.replace("android {", """android {
+    signingConfigs {
+        debug {
+            if (System.getenv("JB_KEYSTORE")) {
+                storeFile file(System.getenv("JB_KEYSTORE"))
+                storePassword "android"
+                keyAlias "androiddebugkey"
+                keyPassword "android"
+            }
+        }
+    }""", 1)
     if "desugar_jdk_libs" not in g:
         g += "\ndependencies {\n    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'\n" + "".join(f"    implementation '{d}'\n" for d in MEDIA3) + "}\n"
     groovy.write_text(g)
@@ -74,6 +86,18 @@ elif kts.exists():
         k = k.replace("compileOptions {", "compileOptions {\n        isCoreLibraryDesugaringEnabled = true", 1)
     if "isMinifyEnabled = false" not in k:
         k = re.sub(r"(signingConfig\s*=\s*signingConfigs\.getByName\(\"debug\"\))", r"\1\n            isMinifyEnabled = false\n            isShrinkResources = false", k, count=1)
+    if "JB_KEYSTORE" not in k:
+        k = k.replace("android {", """android {
+    signingConfigs {
+        getByName("debug") {
+            System.getenv("JB_KEYSTORE")?.let {
+                storeFile = file(it)
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+    }""", 1)
     if "desugar_jdk_libs" not in k:
         k += '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n' + "".join(f'    implementation("{d}")\n' for d in MEDIA3) + '}\n'
     kts.write_text(k)
