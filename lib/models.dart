@@ -214,3 +214,41 @@ String waNumber(String p) {
   if (d.startsWith('0')) d = '62${d.substring(1)}';
   return d;
 }
+
+/// Foto/video trip yang diunggah anggota. Ditaruh otomatis ke hari dan agenda sesuai jam pengambilan.
+class Media {
+  final String id;
+  final Map<String, dynamic> d;
+  Media(this.id, this.d);
+  bool get isVideo => str(d['type']) == 'video';
+  int get takenAt => intOrNull(d['takenAt']) ?? 0;
+  String get date => str(d['date']);
+  String get time => str(d['time']);
+  String get itemId => str(d['itemId']);
+  String get url => str(d['url']);
+  String get thumbUrl => str(d['thumbUrl']).isEmpty ? url : str(d['thumbUrl']);
+  String get path => str(d['path']);
+  String get thumbPath => str(d['thumbPath']);
+  String get by => str(d['by']);
+  String get byName => str(d['byName']);
+  String get assetId => str(d['assetId']);
+  int get width => intOrNull(d['w']) ?? 0;
+  int get height => intOrNull(d['h']) ?? 0;
+  int get durationMs => intOrNull(d['durationMs']) ?? 0;
+  bool get portrait => height >= width;
+}
+
+/// Video recap yang sudah dibuat (per hari atau seluruh trip).
+class Recap {
+  final String id;
+  final Map<String, dynamic> d;
+  Recap(this.id, this.d);
+  String get scope => str(d['scope']);
+  String get date => str(d['date']);
+  String get title => str(d['title']);
+  String get url => str(d['url']);
+  String get path => str(d['path']);
+  String get byName => str(d['byName']);
+  int get durationMs => intOrNull(d['durationMs']) ?? 0;
+  num get createdAt => (d['createdAt'] is num) ? d['createdAt'] as num : 0;
+}

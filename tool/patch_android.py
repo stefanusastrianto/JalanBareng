@@ -20,9 +20,17 @@ perms = [
     "android.permission.RECEIVE_BOOT_COMPLETED",
     "android.permission.VIBRATE",
 ]
-for p in perms:
-    if p not in m:
+media_perms = [
+    "android.permission.READ_MEDIA_IMAGES",
+    "android.permission.READ_MEDIA_VIDEO",
+    "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+    "android.permission.ACCESS_MEDIA_LOCATION",
+]
+for p in perms + media_perms:
+    if f'"{p}"' not in m:
         m = m.replace("<application", f'<uses-permission android:name="{p}"/>\n    <application', 1)
+if '"android.permission.READ_EXTERNAL_STORAGE"' not in m:
+    m = m.replace("<application", '<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>\n    <application', 1)
 receivers = """
         <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
         <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
@@ -40,6 +48,12 @@ m = re.sub(r'android:label="[^"]*"', 'android:label="Jalan Bareng"', m, count=1)
 manifest.write_text(m)
 
 # ---------- app/build.gradle(.kts) ----------
+MEDIA3 = [
+    "androidx.media3:media3-transformer:1.4.1",
+    "androidx.media3:media3-effect:1.4.1",
+    "androidx.media3:media3-common:1.4.1",
+    "androidx.annotation:annotation-experimental:1.4.1",
+]
 groovy = android / "app/build.gradle"
 kts = android / "app/build.gradle.kts"
 if groovy.exists():
@@ -51,7 +65,7 @@ if groovy.exists():
     if "minifyEnabled false" not in g:
         g = re.sub(r"(signingConfig\s*=?\s*signingConfigs\.debug)", r"\1\n            minifyEnabled false\n            shrinkResources false", g, count=1)
     if "desugar_jdk_libs" not in g:
-        g += "\ndependencies {\n    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'\n}\n"
+        g += "\ndependencies {\n    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'\n" + "".join(f"    implementation '{d}'\n" for d in MEDIA3) + "}\n"
     groovy.write_text(g)
 elif kts.exists():
     k = kts.read_text()
@@ -61,9 +75,20 @@ elif kts.exists():
     if "isMinifyEnabled = false" not in k:
         k = re.sub(r"(signingConfig\s*=\s*signingConfigs\.getByName\(\"debug\"\))", r"\1\n            isMinifyEnabled = false\n            isShrinkResources = false", k, count=1)
     if "desugar_jdk_libs" not in k:
-        k += '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n'
+        k += '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n' + "".join(f'    implementation("{d}")\n' for d in MEDIA3) + '}\n'
     kts.write_text(k)
 else:
     sys.exit("android/app/build.gradle tidak ditemukan.")
+
+# ---------- MainActivity (kompres video + perakit recap) ----------
+src = root / "tool/android/MainActivity.kt"
+acts = list((android / "app/src/main").rglob("MainActivity.kt")) + list((android / "app/src/main").rglob("MainActivity.java"))
+if not acts:
+    sys.exit("MainActivity tidak ditemukan.")
+target = android / "app/src/main/kotlin/id/jalanbareng/jalan_bareng/MainActivity.kt"
+for a in acts:
+    a.unlink()
+target.parent.mkdir(parents=True, exist_ok=True)
+target.write_text(src.read_text())
 
 print("Android config patched.")

@@ -34,6 +34,17 @@ class AppState extends ChangeNotifier {
   List<Expense> expenses = [];
   List<Member> members = [];
   List<Msg> messages = [];
+  List<Media> media = [];
+  List<Recap> recaps = [];
+  List<String> skippedAssets = [];
+
+  /// Rute yang diminta dari notifikasi, mis. "recap:2026-12-18" atau "recap:trip".
+  String? pendingRoute;
+  void openRoute(String? r) {
+    if (r == null || r.isEmpty) return;
+    pendingRoute = r;
+    notifyListeners();
+  }
 
   bool busy = false;
   String typing = '';
@@ -79,6 +90,9 @@ class AppState extends ChangeNotifier {
     expenses = [];
     members = [];
     messages = [];
+    media = [];
+    recaps = [];
+    skippedAssets = [];
     tripLoaded = false;
     notifyListeners();
   }
@@ -100,6 +114,20 @@ class AppState extends ChangeNotifier {
       members = q.docs.map((d) => Member(d.id, d.data())).toList();
       notifyListeners();
     }));
+    _subs.add(col('media').snapshots().listen((q) {
+      media = q.docs.map((d) => Media(d.id, d.data())).toList()..sort((a, b) => a.takenAt.compareTo(b.takenAt));
+      notifyListeners();
+    }));
+    _subs.add(col('recaps').snapshots().listen((q) {
+      recaps = q.docs.map((d) => Recap(d.id, d.data())).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      notifyListeners();
+    }));
+    if (email.isNotEmpty) {
+      _subs.add(col('prefs').doc(email).snapshots().listen((d) {
+        skippedAssets = ((d.data()?['skippedAssets'] as List?) ?? const []).map((e) => e.toString()).toList();
+        notifyListeners();
+      }, onError: (_) {}));
+    }
     _subs.add(col('messages').orderBy('createdAt', descending: true).limit(120).snapshots().listen((q) {
       messages = q.docs.map((d) => Msg(d.id, d.data())).toList().reversed.toList();
       notifyListeners();
@@ -214,6 +242,33 @@ class AppState extends ChangeNotifier {
 
   List<Msg> get pending => messages.where((m) => m.role == 'user' && !m.processed).toList();
   int get todoBookings => items.where((i) => i.needsBooking && !i.booked).length;
+
+  // ---------- media ----------
+  List<Media> mediaOn(String day) => media.where((m) => m.date == day).toList();
+  List<Media> mediaForItem(String itemId) => media.where((m) => m.itemId == itemId).toList();
+  Set<String> get myUploadedAssets => media.where((m) => m.by == email && m.assetId.isNotEmpty).map((m) => m.assetId).toSet();
+
+  /// Agenda yang sedang berlangsung pada jam itu: agenda terakhir yang mulai sebelum (atau 15 menit setelah) jam foto.
+  String matchItem(String day, int minute) {
+    Item? best;
+    for (final i in itemsOn(day)) {
+      final m = mins(i.time);
+      if (m == null) continue;
+      if (m <= minute + 15) best = i;
+    }
+    return best?.id ?? '';
+  }
+
+  bool inTrip(DateTime t) {
+    if (start.length < 10 || end.length < 10) return false;
+    final d = isoDate(t);
+    return d.compareTo(start) >= 0 && d.compareTo(end) <= 0;
+  }
+
+  Future<void> skipAssets(Iterable<String> ids) async {
+    final all = {...skippedAssets, ...ids}.toList();
+    await col('prefs').doc(email).set({'skippedAssets': all}, SetOptions(merge: true));
+  }
 
   // ---------- writes ----------
   Future<String> addItem(Map<String, dynamic> data) async {

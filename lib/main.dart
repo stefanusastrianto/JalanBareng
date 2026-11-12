@@ -12,16 +12,18 @@ import 'screens/chat_screen.dart';
 import 'screens/checklist_screen.dart';
 import 'screens/common.dart';
 import 'screens/cost_screen.dart';
+import 'screens/gallery_screen.dart';
 import 'screens/plan_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
-    options: const FirebaseOptions(
+    options: FirebaseOptions(
       apiKey: Config.firebaseApiKey,
       appId: Config.firebaseAppId,
       messagingSenderId: Config.firebaseSenderId,
       projectId: Config.firebaseProjectId,
+      storageBucket: Config.storageBucket,
     ),
   );
   // Simpan salinan data di HP supaya bisa dibuka tanpa sinyal.
@@ -210,11 +212,28 @@ class _HomeShellState extends State<HomeShell> {
   void initState() {
     super.initState();
     NotificationService.I.requestPermission();
+    NotificationService.I.launchPayload().then(AppState.I.openRoute);
+  }
+
+  /// Buka layar yang diminta dari notifikasi (mis. "recap:2026-12-18").
+  void _handleRoute(AppState s) {
+    final r = s.pendingRoute;
+    if (r == null) return;
+    s.pendingRoute = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (r.startsWith('recap:')) {
+        final d = r.substring(6);
+        setState(() => tab = 0);
+        openGallery(context, day: d == 'trip' ? null : d);
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final s = AppState.I;
+    _handleRoute(s);
     // Dibuat baru setiap build (bukan const) supaya setiap tab ikut menampilkan data terbaru.
     final pages = <Widget>[PlanScreen(), ChecklistScreen(), ChatScreen(), CostScreen(), AdminScreen()];
     final titles = ['Jadwal', 'Checklist booking', 'Chat', 'Biaya', 'Admin'];
@@ -229,6 +248,11 @@ class _HomeShellState extends State<HomeShell> {
           ),
         ]),
         actions: [
+          IconButton(
+            tooltip: 'Foto & video',
+            onPressed: () => openGallery(context),
+            icon: Badge(isLabelVisible: s.media.isNotEmpty, label: Text('${s.media.length}'), child: const Icon(Icons.photo_library_outlined)),
+          ),
           if (s.fromCache)
             const Padding(
               padding: EdgeInsets.only(right: 12),

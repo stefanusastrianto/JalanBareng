@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../models.dart';
+import '../services/media.dart';
 import '../services/recorder.dart';
 import '../store.dart';
 import 'common.dart';
+import 'gallery_screen.dart';
 import 'scene.dart';
 import 'sheets.dart';
 
@@ -18,6 +20,17 @@ class PlanScreen extends StatefulWidget {
 class _PlanScreenState extends State<PlanScreen> {
   String? summary;
   bool summarizing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Selama (dan sesudah) trip, cek diam-diam apakah ada foto baru di HP. Tidak memunculkan dialog izin.
+    final s = AppState.I;
+    final today = isoDate(DateTime.now());
+    if (s.start.length == 10 && today.compareTo(s.start) >= 0) {
+      MediaService.I.scan(ask: false);
+    }
+  }
 
   String? _pickFocus(AppState s) {
     final days = s.activeDays();
@@ -52,6 +65,7 @@ class _PlanScreenState extends State<PlanScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
       children: [
+        const NewMediaBanner(),
         if (day != null) _focusBox(context, s, day, days, today),
         const SectionTitle('Semua hari'),
         for (final d in s.tripDays()) _dayBlock(context, s, d, today),
@@ -105,7 +119,16 @@ class _PlanScreenState extends State<PlanScreen> {
             Wrap(spacing: 8, runSpacing: 8, children: [
               if (!s.isViewer) FilledButton.tonal(onPressed: () => openDay(context, day), child: const Text('Tambah / ubah agenda hari ini')),
               OutlinedButton(onPressed: summarizing ? null : () => _summary(day), child: Text(summarizing ? 'Menyusun…' : 'Ringkasan WhatsApp')),
+              if (day.compareTo(today) <= 0)
+                OutlinedButton.icon(
+                    onPressed: () => openGallery(context, day: day),
+                    icon: const Icon(Icons.photo_library_outlined, size: 18),
+                    label: Text('Foto & video${s.mediaOn(day).isEmpty ? '' : ' (${s.mediaOn(day).length})'}')),
+              if (day.compareTo(today) <= 0 && s.mediaOn(day).isNotEmpty)
+                OutlinedButton.icon(
+                    onPressed: () => openRecap(context, day), icon: const Icon(Icons.movie_creation_outlined, size: 18), label: const Text('Recap hari ini')),
             ]),
+            if (s.mediaOn(day).isNotEmpty) ...[const SizedBox(height: 10), MediaStrip(day)],
             if (summary != null) ...[
               const SizedBox(height: 10),
               Container(
@@ -203,6 +226,11 @@ class _PlanScreenState extends State<PlanScreen> {
           const SizedBox(width: 6),
           Pill(s.cityLabel(d), fg: C.muted, bg: C.sunk),
           const Spacer(),
+          if (s.mediaOn(d).isNotEmpty)
+            TextButton.icon(
+                onPressed: () => openGallery(context, day: d),
+                icon: const Icon(Icons.photo_library_outlined, size: 16),
+                label: Text('${s.mediaOn(d).length}')),
           if (!s.isViewer) TextButton(onPressed: () => openDay(context, d), child: const Text('Tambah / ubah')),
         ]),
         Container(

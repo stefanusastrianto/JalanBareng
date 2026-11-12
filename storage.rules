@@ -1,0 +1,15 @@
+rules_version = '2';
+// Foto, video, dan recap trip hanya bisa dibaca dan diunggah oleh email anggota trip.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isMember() {
+      return request.auth != null && request.auth.token.email != null
+        && request.auth.token.email.lower() in firestore.get(/databases/(default)/documents/trips/main).data.memberEmails;
+    }
+    match /trip/{allPaths=**} {
+      allow read: if isMember();
+      allow create, update: if isMember() && request.resource.size < 300 * 1024 * 1024;
+      allow delete: if isMember();
+    }
+  }
+}

@@ -100,6 +100,17 @@ Setiap kali kode diubah dan di-upload ulang ke GitHub, APK baru otomatis dibangu
 3. Kirim APK ke istri Anda → ia memasang dan masuk dengan akun Google tersebut.
 4. Tab Admin → **Aktifkan / jadwalkan ulang** pengingat, lalu **Tes notifikasi**.
 
+## Langkah 9 — Foto, video, dan video recap (versi 1.1)
+
+1. Firebase console → kiri bawah **Spark · Upgrade** → pilih paket **Blaze** → pilih akun billing yang sudah ada. Pemakaian di bawah kuota gratis tetap Rp0.
+2. **Databases and storage → Storage → Get started** → lokasi `asia-southeast2` (atau yang ditawarkan) → **Production mode** → **Done**.
+3. Tab **Rules** → ganti isinya dengan isi file `storage.rules` → **Publish**. Kalau diminta memberi izin Storage membaca Firestore, klik **Grant**.
+4. Google Cloud → **Budgets and caps** → buat budget kecil untuk layanan **Cloud Storage**.
+
+Cara pakai:
+- Selama trip, tab Jadwal menampilkan banner "N foto/video baru" → **Unggah**. Foto dikompres (±0,5 MB), video dikompres ke 720p. Masing-masing otomatis ditaruh di hari dan agenda sesuai jam pengambilan; bisa dipindah manual.
+- Setiap jam 21.00 muncul notifikasi **Recap hari ini**. Ketuk → **Buat video recap**: Gemini memilih momen terbaik, video dirakit di HP, lalu bisa dibagikan ke WhatsApp. Malam terakhir: **recap seluruh trip**.
+
 ---
 
 ## Kalau ada masalah
@@ -114,6 +125,9 @@ Setiap kali kode diubah dan di-upload ulang ke GitHub, APK baru otomatis dibangu
 | Chat: model tidak ditemukan | Ganti nama model di Admin → Ubah trip |
 | Foto/rating tempat tidak muncul | `PLACES_API_KEY` kosong, billing belum aktif, atau pembatasan key belum memuat SHA-1 |
 | Sync Gmail: izin ditolak | Email belum ditambahkan sebagai Test user di OAuth consent screen |
+| Unggah foto gagal "permission denied" / "unauthorized" | Storage belum dibuat, `storage.rules` belum dipasang, atau project belum Blaze |
+| Unggah foto gagal "bucket not found" | Nama bucket berbeda: salin nama bucket dari halaman Storage (tanpa `gs://`) ke secret `FIREBASE_STORAGE_BUCKET`, lalu build ulang |
+| Recap gagal dirakit | Coba tanpa musik; HP lama kadang menolak campuran foto + video bersuara (aplikasi otomatis mencoba ulang tanpa suara) |
 | Notifikasi tidak muncul | Izinkan notifikasi untuk Jalan Bareng di pengaturan HP; matikan penghemat baterai untuk aplikasi ini |
 
 ## Struktur kode

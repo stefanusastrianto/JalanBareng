@@ -54,12 +54,13 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PLACES_API_KEY: ${{ secrets.PLACES_API_KEY }}
           ANDROID_CERT_SHA1: ${{ secrets.ANDROID_CERT_SHA1 }}
+          FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
         run: |
           flutter pub get
           args=()
-          for n in FIREBASE_API_KEY FIREBASE_APP_ID FIREBASE_SENDER_ID FIREBASE_PROJECT_ID GOOGLE_WEB_CLIENT_ID GEMINI_API_KEY PLACES_API_KEY ANDROID_CERT_SHA1; do
+          for n in FIREBASE_API_KEY FIREBASE_APP_ID FIREBASE_SENDER_ID FIREBASE_PROJECT_ID GOOGLE_WEB_CLIENT_ID GEMINI_API_KEY PLACES_API_KEY ANDROID_CERT_SHA1 FIREBASE_STORAGE_BUCKET; do
             v="$(printf '%s' "${!n}" | tr -d '\r\n ')"
-            args+=("--dart-define=$n=$v")
+            [ -n "$v" ] && args+=("--dart-define=$n=$v")
           done
           flutter build apk --release "${args[@]}"
 

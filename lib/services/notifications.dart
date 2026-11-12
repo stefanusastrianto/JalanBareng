@@ -26,8 +26,19 @@ class NotificationService {
     if (_ready) return;
     tzdata.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation(Config.timezone));
-    await _plugin.initialize(const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')));
+    await _plugin.initialize(
+      const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')),
+      onDidReceiveNotificationResponse: (r) => AppState.I.openRoute(r.payload),
+    );
     _ready = true;
+  }
+
+  /// Payload notifikasi yang membuka aplikasi (bila aplikasi dibuka dari notifikasi).
+  Future<String?> launchPayload() async {
+    await init();
+    final d = await _plugin.getNotificationAppLaunchDetails();
+    if (d?.didNotificationLaunchApp ?? false) return d?.notificationResponse?.payload;
+    return null;
   }
 
   Future<bool> requestPermission() async {
@@ -48,9 +59,10 @@ class NotificationService {
     return tz.TZDateTime(tz.local, d.year, d.month, d.day, minutes ~/ 60, minutes % 60);
   }
 
-  Future<void> _schedule(String key, String title, String body, tz.TZDateTime when) async {
+  Future<void> _schedule(String key, String title, String body, tz.TZDateTime when, {String? payload}) async {
     if (!when.isAfter(tz.TZDateTime.now(tz.local))) return;
     await _plugin.zonedSchedule(_id(key), title, body, when, _details,
+        payload: payload,
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime);
     scheduledCount++;
@@ -65,6 +77,19 @@ class NotificationService {
       scheduledCount = 0;
       final now = DateTime.now();
       final limit = now.add(const Duration(days: 45));
+      // Recap harian jam 21.00 setiap hari trip, dan recap seluruh trip di malam terakhir.
+      final tripDays = s.tripDays();
+      for (final day in tripDays) {
+        final d = parseIso(day);
+        if (d.isBefore(DateTime(now.year, now.month, now.day)) || d.isAfter(limit)) continue;
+        final last = day == tripDays.last;
+        await _schedule('recap-$day', last ? 'Trip selesai! Buat video recap' : 'Recap hari ini · ${s.realCityLabel(day)}',
+            last
+                ? 'Unggah foto & video terakhir, lalu buat video recap seluruh trip untuk dibagikan ke keluarga.'
+                : 'Unggah foto & video hari ini, lalu buat video recap pendek untuk dibagikan.',
+            _at(day, 21 * 60),
+            payload: last ? 'recap:trip' : 'recap:$day');
+      }
       for (final day in s.activeDays()) {
         final d = parseIso(day);
         if (d.isBefore(DateTime(now.year, now.month, now.day)) || d.isAfter(limit)) continue;
