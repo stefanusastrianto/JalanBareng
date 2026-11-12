@@ -82,8 +82,13 @@ class _SignInScreenState extends State<SignInScreen> {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            const Icon(Icons.landscape_rounded, size: 64, color: C.tosca),
-            const SizedBox(height: 12),
+            Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(40),
+                child: Image.asset('assets/logo.png', width: 200, height: 200, fit: BoxFit.cover),
+              ),
+            ),
+            const SizedBox(height: 16),
             const Text('Jalan Bareng', textAlign: TextAlign.center, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
             const SizedBox(height: 6),
             const Text('Jadwal, booking, dan biaya liburan keluarga. Bisa dibuka tanpa sinyal.',

@@ -91,4 +91,13 @@ for a in acts:
 target.parent.mkdir(parents=True, exist_ok=True)
 target.write_text(src.read_text())
 
+# ---------- ikon aplikasi dan ikon notifikasi ----------
+import shutil
+res_src = root / "tool/android/res"
+res_dst = android / "app/src/main/res"
+for f in res_src.rglob("*.png"):
+    dst = res_dst / f.relative_to(res_src)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(f, dst)
+
 print("Android config patched.")

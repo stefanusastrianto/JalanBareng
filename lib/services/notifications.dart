@@ -1,3 +1,5 @@
+import 'dart:ui' show Color;
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
@@ -19,7 +21,9 @@ class NotificationService {
     android: AndroidNotificationDetails('jadwal', 'Pengingat jadwal',
         channelDescription: 'Pengingat agenda dan ringkasan hari berikutnya',
         importance: Importance.high,
-        priority: Priority.high),
+        priority: Priority.high,
+        icon: 'ic_stat_jb',
+        color: Color(0xFF0E9C8A)),
   );
 
   Future<void> init() async {
@@ -27,7 +31,7 @@ class NotificationService {
     tzdata.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation(Config.timezone));
     await _plugin.initialize(
-      const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')),
+      const InitializationSettings(android: AndroidInitializationSettings('ic_stat_jb')),
       onDidReceiveNotificationResponse: (r) => AppState.I.openRoute(r.payload),
     );
     _ready = true;
