@@ -64,6 +64,10 @@ jobs:
           done
           flutter build apk --release "${args[@]}"
 
+      - name: Cek tanda tangan APK
+        run: |
+          keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk | grep -E "SHA1:|SHA-1:" | sed 's/^/SHA-1 APK (pakai titik): /; s/:/./g'
+
       - uses: actions/upload-artifact@v4
         with:
           name: jalan-bareng-apk
