@@ -199,9 +199,11 @@ class MediaService extends ChangeNotifier {
     double? lng;
     try {
       final ll = await a.latlngAsync();
-      if (ll.latitude != 0 || ll.longitude != 0) {
-        lat = ll.latitude;
-        lng = ll.longitude;
+      final la = ll?.latitude;
+      final lo = ll?.longitude;
+      if (la != null && lo != null && (la != 0 || lo != 0)) {
+        lat = la;
+        lng = lo;
       }
     } catch (_) {}
 
