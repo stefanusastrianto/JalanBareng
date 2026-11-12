@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function tripDoc() {
+      return get(/databases/$(database)/documents/trips/main);
+    }
+    function signedIn() {
+      return request.auth != null && request.auth.token.email != null;
+    }
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+    function isMember() {
+      return signedIn() && myEmail() in tripDoc().data.memberEmails;
+    }
+
+    match /trips/main {
+      // Boleh dibaca anggota; sebelum trip dibuat, siapa pun yang login boleh melihat bahwa trip belum ada.
+      allow read: if isMember() || (signedIn() && !exists(/databases/$(database)/documents/trips/main));
+      // Orang pertama yang membuka aplikasi membuat trip dan menjadi admin.
+      allow create: if signedIn()
+        && myEmail() in request.resource.data.memberEmails
+        && request.resource.data.adminEmail == myEmail();
+      // Hanya admin yang boleh mengubah daftar anggota dan admin.
+      allow update: if isMember() && (
+        myEmail() == resource.data.adminEmail
+        || (request.resource.data.memberEmails == resource.data.memberEmails
+            && request.resource.data.adminEmail == resource.data.adminEmail)
+      );
+    }
+
+    match /trips/main/{collection}/{docId} {
+      allow read, write: if isMember();
+    }
+  }
+}
