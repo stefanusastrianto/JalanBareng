@@ -131,7 +131,7 @@ Jawab JSON saja: {"items":[{"id":"...","kind":"...","query":"...","from":"...","
       final res = await Places.search(q, max: 3);
       if (res.isEmpty) {
         upd['placeStatus'] = 'none';
-      } else if (kind == 'place' && (pl['confident'] == true || res.length == 1)) {
+      } else if (kind == 'place' && (res.length == 1 || (pl['confident'] == true && _score(q, res[0]) > _score(q, res[1])))) {
         upd['placeStatus'] = 'ok';
         upd['placeId'] = res.first.id;
       } else {
@@ -149,6 +149,16 @@ Jawab JSON saja: {"items":[{"id":"...","kind":"...","query":"...","from":"...","
     final merged = Item(i.id, {...i.d, ...upd});
     upd['placeKey'] = merged.contentKey;
     await s.updateItem(i.id, upd);
+  }
+
+  static const _stop = {'gereja', 'hotel', 'stasiun', 'restoran', 'rumah', 'makan', 'jalan', 'kota', 'kabupaten', 'kecamatan'};
+
+  /// Seberapa banyak kata penting dari pencarian yang muncul di nama + alamat hasil (0..1).
+  double _score(String q, PlaceInfo p) {
+    final words = q.toLowerCase().split(RegExp(r'[^a-z0-9]+')).where((w) => w.length >= 4 && !_stop.contains(w)).toSet();
+    if (words.isEmpty) return 0;
+    final hay = '${p.name} ${p.address}'.toLowerCase();
+    return words.where(hay.contains).length / words.length;
   }
 
   /// Pengguna memilih salah satu opsi.
