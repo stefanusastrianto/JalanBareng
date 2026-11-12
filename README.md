@@ -57,7 +57,7 @@ Total waktu setup: sekitar 1–2 jam, sekali saja. Semua langkah bisa dilakukan 
 
 Proyek Firebase otomatis punya proyek Google Cloud dengan nama yang sama.
 
-1. Buka console.cloud.google.com → pilih proyek `jalan-bareng`.
+1. Buka console.cloud.google.com → pilih **Create API key in new project** (project tanpa billing, supaya tetap gratis).
 2. **APIs & Services → Library** → cari **Gmail API** → **Enable**.
 3. **APIs & Services → OAuth consent screen**:
    - User type: **External**. Status biarkan **Testing**.
@@ -68,10 +68,10 @@ Proyek Firebase otomatis punya proyek Google Cloud dengan nama yang sama.
 
 ## Langkah 5 — Gemini API (otak AI)
 
-1. Buka aistudio.google.com → **Get API key** → **Create API key** → pilih proyek `jalan-bareng`.
+1. Buka aistudio.google.com → **Get API key** → **Create API key** → pilih **Create API key in new project** (project tanpa billing, supaya tetap gratis).
 2. Simpan sebagai secret `GEMINI_API_KEY`.
 
-Model default `gemini-2.5-flash`. Kalau Google mengganti atau menghentikan model ini, ubah nama model di aplikasi: **Admin → Ubah trip → Model Gemini**. Tidak perlu build ulang.
+Model default `gemini-flash-latest` (selalu versi Flash terbaru). Kalau Google mengganti atau menghentikan model ini, ubah nama model di aplikasi: **Admin → Ubah trip → Model Gemini**. Tidak perlu build ulang.
 
 ## Langkah 6 — Google Places (foto dan rating tempat)
 

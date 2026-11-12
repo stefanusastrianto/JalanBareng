@@ -9,7 +9,7 @@ class Config {
   static const webClientId = String.fromEnvironment('GOOGLE_WEB_CLIENT_ID');
 
   static const geminiKey = String.fromEnvironment('GEMINI_API_KEY');
-  static const geminiModelDefault = String.fromEnvironment('GEMINI_MODEL', defaultValue: 'gemini-2.5-flash');
+  static const geminiModelDefault = String.fromEnvironment('GEMINI_MODEL', defaultValue: 'gemini-flash-latest');
   static const placesKey = String.fromEnvironment('PLACES_API_KEY');
 
   /// Untuk pembatasan API key berdasarkan aplikasi Android.

@@ -130,7 +130,7 @@ class _AdminScreenState extends State<AdminScreen> {
             Expanded(child: TextField(controller: end, decoration: deco('Selesai (YYYY-MM-DD)'))),
           ]),
           const SizedBox(height: 10),
-          TextField(controller: model, decoration: deco('Model Gemini (mis. gemini-2.5-flash)')),
+          TextField(controller: model, decoration: deco('Model Gemini (mis. gemini-flash-latest)')),
           const SizedBox(height: 14),
           Align(
             alignment: Alignment.centerRight,
@@ -257,7 +257,7 @@ class _AdminScreenState extends State<AdminScreen> {
             ListTile(
               leading: const Icon(Icons.auto_awesome_outlined),
               title: const Text('Model AI'),
-              subtitle: Text('${s.geminiModel} (Gemini, tier gratis)'),
+              subtitle: Text('${s.geminiModel} (Gemini)'),
             ),
             ListTile(
               leading: const Icon(Icons.map_outlined),
