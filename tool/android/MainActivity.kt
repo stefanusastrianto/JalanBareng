@@ -16,7 +16,7 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.OverlayEffect
 import androidx.media3.effect.Presentation
-import androidx.media3.effect.StaticOverlaySettings
+import androidx.media3.effect.OverlaySettings
 import androidx.media3.effect.TextOverlay
 import androidx.media3.effect.TextureOverlay
 import androidx.media3.transformer.Composition
@@ -114,7 +114,7 @@ class MainActivity : FlutterActivity() {
         s.setSpan(BackgroundColorSpan(Color.argb(150, 0, 0, 0)), 0, n, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
         s.setSpan(AbsoluteSizeSpan(size), 0, n, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
         if (bold) s.setSpan(StyleSpan(Typeface.BOLD), 0, n, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-        val settings = StaticOverlaySettings.Builder().setBackgroundFrameAnchor(x, y).build()
+        val settings = OverlaySettings.Builder().setBackgroundFrameAnchor(x, y).build()
         return TextOverlay.createStaticTextOverlay(s, settings)
     }
 
