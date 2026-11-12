@@ -10,6 +10,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'config.dart';
 import 'models.dart';
 import 'services/notifications.dart';
+import 'services/resolver.dart';
 
 /// Satu-satunya sumber data aplikasi. Firestore menyimpan salinan di HP,
 /// jadi semua data tetap bisa dibuka tanpa sinyal dan sinkron saat online.
@@ -107,6 +108,7 @@ class AppState extends ChangeNotifier {
       notifyListeners();
       _notifTimer?.cancel();
       _notifTimer = Timer(const Duration(seconds: 3), () => NotificationService.I.reschedule(this));
+      PlaceResolver.I.schedule();
     }, onError: (Object e) {
       dataError = 'Agenda tidak bisa dibaca: $e. Cek aturan Firestore (README langkah 3).';
       notifyListeners();

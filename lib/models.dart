@@ -68,6 +68,29 @@ class Item {
   String get bookedVia => str(d['bookedVia']);
   String get bookedBy => str(d['bookedBy']);
   String get placeId => str(d['placeId']);
+  String get from => str(d['from']);
+  String get to => str(d['to']);
+  String get fromPlaceId => str(d['fromPlaceId']);
+  String get toPlaceId => str(d['toPlaceId']);
+
+  /// '' (belum dicari) · 'ok' · 'route' · 'pick' (perlu dipilih) · 'none' (tidak butuh lokasi)
+  String get placeStatus => str(d['placeStatus']);
+  String get placeKey => str(d['placeKey']);
+
+  /// 'ambiguous' (nama tempat ada, hasil ragu) atau 'suggest' (agenda generik, berupa saran).
+  String get pickReason => str(d['pickReason']);
+  List<String> get placeOptions => ((d['placeOptions'] as List?) ?? const []).map((e) => e.toString()).toList();
+  bool get isTransport => type == 'kereta' || type == 'pesawat';
+
+  /// Sidik isi agenda; bila berubah, lokasi dicari ulang.
+  String get contentKey {
+    final raw = [title, location, detail, type, date, from, to].join('|');
+    var h = 7;
+    for (final c in raw.codeUnits) {
+      h = (h * 31 + c) & 0x3fffffff;
+    }
+    return 'k$h';
+  }
   String get fileId => str(d['fileId']);
   int? get cost => intOrNull(d['cost']);
   bool get booked => d['booked'] == true;

@@ -7,6 +7,7 @@ import '../services/recorder.dart';
 import '../store.dart';
 import 'common.dart';
 import 'gallery_screen.dart';
+import 'place_chips.dart';
 import 'scene.dart';
 import 'sheets.dart';
 
@@ -190,6 +191,7 @@ class _PlanScreenState extends State<PlanScreen> {
                   '${placeText(i)}${i.endTime.isNotEmpty ? ' · tiba ${i.endTime}' : ''}',
                   style: TextStyle(fontSize: 12.5, color: i.isOpen ? C.coral : C.muted, fontWeight: i.isOpen ? FontWeight.w700 : FontWeight.w400)),
               if (i.needsBooking) Padding(padding: const EdgeInsets.only(top: 6), child: bookingPill(i)),
+              PlaceLine(i),
               if (first && i.bookingCode.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
@@ -199,7 +201,7 @@ class _PlanScreenState extends State<PlanScreen> {
                     TextButton(onPressed: () => copyText(context, i.bookingCode), child: const Text('Salin kode')),
                   ]),
                 ),
-              if (first && i.location.isNotEmpty)
+              if (first && i.location.isNotEmpty && i.placeStatus != 'ok')
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: TextButton.icon(
@@ -259,13 +261,14 @@ class _PlanScreenState extends State<PlanScreen> {
                       onTap: () => openItem(context, its[k]),
                       leading: TypeIcon(its[k].type),
                       title: Text(its[k].title, style: const TextStyle(fontWeight: FontWeight.w700)),
-                      subtitle: Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                        if (its[k].time.isNotEmpty) Pill(its[k].time, fg: Colors.white, bg: C.ink),
-                        if (its[k].needsBooking) bookingPill(its[k]),
-                        if (its[k].isOpen)
-                          Text('${placeText(its[k])} · lihat saran', style: const TextStyle(color: C.coral, fontWeight: FontWeight.w700, fontSize: 12))
-                        else if (its[k].location.isNotEmpty)
-                          Text(its[k].location.split(',').first, style: const TextStyle(fontSize: 12)),
+                      subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                          if (its[k].time.isNotEmpty) Pill(its[k].time, fg: Colors.white, bg: C.ink),
+                          if (its[k].needsBooking) bookingPill(its[k]),
+                          if (its[k].placeStatus.isEmpty && its[k].location.isNotEmpty)
+                            Text(its[k].location.split(',').first, style: const TextStyle(fontSize: 12)),
+                        ]),
+                        PlaceLine(its[k]),
                       ]),
                     ),
                   ],

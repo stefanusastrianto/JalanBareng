@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -189,8 +190,16 @@ class PlacePhoto extends StatelessWidget {
     if (p.photoName == null) return ClipRRect(borderRadius: BorderRadius.circular(10), child: box);
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
-      child: Image.network(Places.photoUrl(p.photoName!, width: (width * 2.5).round()),
-          headers: Places.photoHeaders, width: width, height: height, fit: BoxFit.cover, errorBuilder: (_, __, ___) => box),
+      child: CachedNetworkImage(
+        imageUrl: Places.photoUrl(p.photoName!, width: 400),
+        cacheKey: 'gp:${p.photoName}',
+        httpHeaders: Places.photoHeaders,
+        width: width,
+        height: height,
+        fit: BoxFit.cover,
+        placeholder: (_, __) => box,
+        errorWidget: (_, __, ___) => box,
+      ),
     );
   }
 }

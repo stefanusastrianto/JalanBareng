@@ -70,7 +70,8 @@ ${docText.isEmpty ? '' : '\nISI DOKUMEN / EMAIL:\n"""$docText"""\n'}${hasFiles ?
 Aturan:
 - Cocokkan ke agenda yang sudah ada berdasarkan tanggal, jenis, dan kota/nama tempat. Contoh: "hotel di bandung tanggal 17" cocok dengan agenda hotel tanggal 2026-12-17. Jangan membuat agenda baru jika ada yang cocok.
 - "booked": tandai sudah dibooking. Isi bookingCode, bookingName (atas nama), note bila ada. Jika dokumen menunjukkan tempat atau penyedia yang BERBEDA dari rencana, isi juga title dengan nama sebenarnya, location dengan nama + alamat, time dengan jam check-in/berangkat, endTime dengan jam tiba, dan detail singkat (kelas, kursi, check-out, telepon).
-- "update": ubah field agenda (title, date, time, endTime, location, detail, type, cost) jika pesan meminta atau menyebut info baru. "cost" adalah RENCANA biaya; ubah hanya bila pesan jelas meminta mengubah rencana/budget.
+- Untuk kereta/pesawat isi juga "from" (stasiun/bandara berangkat) dan "to" (stasiun/bandara tiba), mis. from "Stasiun Kereta Cepat Halim", to "Stasiun Padalarang".
+- "update": ubah field agenda (title, date, time, endTime, location, from, to, detail, type, cost) jika pesan meminta atau menyebut info baru. Bila pengguna menyebut lokasi tempat yang lebih spesifik, ubah location. "cost" adalah RENCANA biaya; ubah hanya bila pesan jelas meminta mengubah rencana/budget.
 - "add": agenda baru yang benar-benar belum ada (isi date, time, type, title, location, detail, needsBooking, booked, bookingCode, bookingName, cost).
 - "delete": hapus agenda yang ada jika pesan memintanya secara jelas.
 - "unbook": jika booking dibatalkan.
@@ -84,9 +85,9 @@ Balas HANYA JSON:
 {"reply":"balasan singkat untuk grup dalam bahasa Indonesia; sebut apa yang dicatat atau jawabannya","actions":[{"op":"booked|update|add|delete|unbook|expense","id":"(untuk booked/update/delete/unbook)","fields":{}}]}''';
   }
 
-  static const _allowed = ['title', 'date', 'time', 'endTime', 'location', 'detail', 'cost', 'type', 'bookingCode', 'bookingName', 'needsBooking', 'booked'];
+  static const _allowed = ['title', 'date', 'time', 'endTime', 'location', 'from', 'to', 'detail', 'cost', 'type', 'bookingCode', 'bookingName', 'needsBooking', 'booked'];
   static const _label = {
-    'title': 'judul', 'date': 'tanggal', 'time': 'jam', 'endTime': 'jam tiba', 'location': 'lokasi', 'detail': 'catatan',
+    'title': 'judul', 'date': 'tanggal', 'time': 'jam', 'endTime': 'jam tiba', 'location': 'lokasi', 'from': 'berangkat dari', 'to': 'tiba di', 'detail': 'catatan',
     'cost': 'rencana biaya', 'type': 'jenis', 'bookingCode': 'kode', 'bookingName': 'atas nama', 'needsBooking': 'perlu booking', 'booked': 'status',
   };
 

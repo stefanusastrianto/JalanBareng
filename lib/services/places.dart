@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 
 import '../config.dart';
 import 'gemini.dart' show androidKeyHeaders;
@@ -25,7 +28,12 @@ class PlaceInfo {
     this.photoAuthor = '',
   });
 
-  factory PlaceInfo.fromJson(Map<String, dynamic> j) {
+  /// Bentuk asli respons Google (dipakai untuk cache sementara di HP).
+  Map<String, dynamic> raw = const {};
+
+  factory PlaceInfo.fromJson(Map<String, dynamic> j) => PlaceInfo._parse(j)..raw = j;
+
+  factory PlaceInfo._parse(Map<String, dynamic> j) {
     final photos = (j['photos'] as List?) ?? const [];
     String? photo;
     var author = '';
@@ -49,8 +57,42 @@ class PlaceInfo {
   }
 }
 
-/// Google Places API (New). Data Google tidak disimpan di database; hanya place ID yang disimpan.
+/// Google Places API (New). Data Google tidak disimpan di database bersama; hanya place ID yang disimpan.
+/// Detail tempat disimpan sementara di HP (maks. 30 hari) supaya hemat kuota dan cepat dibuka.
 class Places {
+  static const _ttl = Duration(days: 30);
+  static Map<String, dynamic>? _disk;
+  static Timer? _saveTimer;
+
+  static Future<File> _file() async => File('${(await getApplicationSupportDirectory()).path}/places_cache.json');
+
+  static Future<void> _loadDisk() async {
+    if (_disk != null) return;
+    try {
+      final f = await _file();
+      _disk = f.existsSync() ? Map<String, dynamic>.from(jsonDecode(await f.readAsString()) as Map) : {};
+    } catch (_) {
+      _disk = {};
+    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    _disk!.removeWhere((k, v) => v is! Map || now - ((v['t'] as num?) ?? 0) > _ttl.inMilliseconds);
+  }
+
+  static void _remember(PlaceInfo p) {
+    _detailCache[p.id] = p;
+    if (_disk == null || p.raw.isEmpty) return;
+    _disk![p.id] = {'t': DateTime.now().millisecondsSinceEpoch, 'j': p.raw};
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(seconds: 2), () async {
+      try {
+        await (await _file()).writeAsString(jsonEncode(_disk));
+      } catch (_) {}
+    });
+  }
+
+  /// Detail yang sudah ada di memori (tanpa jaringan), untuk tampilan instan.
+  static PlaceInfo? cached(String id) => _detailCache[id];
+
   static const _fields = 'id,displayName,formattedAddress,rating,userRatingCount,googleMapsUri,photos';
   static final Map<String, List<PlaceInfo>> _searchCache = {};
   static final Map<String, PlaceInfo> _detailCache = {};
@@ -75,8 +117,9 @@ class Places {
         .map((e) => PlaceInfo.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList();
     _searchCache[key] = list;
+    await _loadDisk();
     for (final p in list) {
-      _detailCache[p.id] = p;
+      _remember(p);
     }
     return list;
   }
@@ -85,13 +128,20 @@ class Places {
     if (!enabled || id.isEmpty) return null;
     final hit = _detailCache[id];
     if (hit != null) return hit;
+    await _loadDisk();
+    final d = _disk![id];
+    if (d is Map && d['j'] is Map) {
+      final p = PlaceInfo.fromJson(Map<String, dynamic>.from(d['j'] as Map));
+      _detailCache[id] = p;
+      return p;
+    }
     final res = await http
         .get(Uri.parse('https://places.googleapis.com/v1/places/$id?languageCode=id'),
             headers: {..._headers, 'X-Goog-FieldMask': _fields})
         .timeout(const Duration(seconds: 20));
     if (res.statusCode >= 400) return null;
     final p = PlaceInfo.fromJson(Map<String, dynamic>.from(jsonDecode(res.body) as Map));
-    _detailCache[id] = p;
+    _remember(p);
     return p;
   }
 
