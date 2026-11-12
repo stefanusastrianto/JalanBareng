@@ -4,6 +4,6 @@ build/
 .flutter-plugins-dependencies
 *.iml
 .idea/
-android/
+/android/
 google-services.json
 *.keystore
